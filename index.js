@@ -1,11 +1,13 @@
+require("dotenv").config(); // Load environment variables from .env file
+
 const express = require("express");
 const bodyParser = require("body-parser");
 const cors = require("cors");
 const admin = require("firebase-admin");
 const crypto = require("crypto");
 
-// Load Firebase service account key
-const serviceAccount = require("./serviceAccountKey.json");
+// Load Firebase service account key from path specified in environment variables
+const serviceAccount = require(process.env.GOOGLE_APPLICATION_CREDENTIALS);
 
 admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),
