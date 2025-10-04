@@ -1,0 +1,208 @@
+{
+  "name": "Auto-Advertisment",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "upload-excel",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "eff817b5-d933-4d34-b2c6-a6b04d722c25",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        560,
+        -96
+      ],
+      "webhookId": "29ba1991-f925-4eb7-9154-d8b3936f1c15"
+    },
+    {
+      "parameters": {
+        "operation": "xlsx",
+        "binaryPropertyName": "file",
+        "options": {
+          "headerRow": true
+        }
+      },
+      "id": "d37aabdc-a7ce-4404-b6b2-cc8f29af0646",
+      "name": "Extract from File",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        784,
+        -96
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "chat",
+        "model": "gpt-4o-mini",
+        "prompt": {
+          "messages": [
+            {
+              "role": "system",
+              "content": "=You are a professional marketing copywriter.  Write only in Hebrew.  Your tone should be professional, authentic, and persuasive, as if written by the business owner.  Do not use emojis or exaggerated slang.  If a field is missing, simply omit it.  Never invent details that are not present in the provided JSON."
+            },
+            {
+              "content": "=={{ (() => {\n  const f = $json;\n\n  const fields = {\n    name:        f.name ?? f.Name ?? f.productName,\n    price:       f.price ?? f.Price,\n    description: f.description ?? f.Description,\n    imageUrl:    f.imageUrl ?? f.ImageUrl,\n    businessName:f.businessName ?? f.BusinessName,\n    address:     f.address ?? f.Location ?? f.Address,\n    link:        f.link ?? f.Link ?? f.website,\n    phone:       f.phone ?? f.Phone,\n    discount:    f.discount ?? f.Discount,\n    currency:    f.currency ?? f.Currency,\n    tags:        f.tags ?? f.Tags,\n    category:    f.category ?? f.Category,\n  };\n\n  // clean empty/undefined values\n  for (const k of Object.keys(fields)) {\n    const v = fields[k];\n    if (v == null || v === '' || String(v).toLowerCase() === 'undefined') delete fields[k];\n  }\n\n  return `You are given structured product data in JSON format. Create a short marketing caption in **Hebrew** for this product.\n\nPRODUCT JSON:\n${JSON.stringify(fields)}\n\nRULES:\n- Use only the fields that exist in the JSON.\n- If \"price\" exists, include it naturally (use the currency if available).\n- If \"businessName\" exists, mention it naturally.\n- If \"link\" exists, add a call to action that refers to it.\n- If \"address\" exists, you may add a local touch but only if provided.\n- If \"discount\" exists, highlight it as a promotion.\n- Write in Hebrew only. \n- Keep it authentic, professional, and persuasive. \n- Do NOT use emojis. \n- Do NOT output quotes around the whole caption.`;\n})() }}\n"
+            }
+          ]
+        },
+        "options": {},
+        "requestOptions": {}
+      },
+      "id": "637cec73-a2fc-4fee-832e-e531fec0e448",
+      "name": "OpenAI Generate Caption1",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [
+        1424,
+        -96
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "s04FTiyGh7Ah1MGW",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:3000/upload-products",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {\n  \"businessId\": \"yQB2mZ6EGAqNuvZMKu27\",\n  \"businessInfo\": {\n    \"name\": \"Test Shop\",\n    \"owner\": \"John Doe\"\n  },\n  \"products\": JSON.parse(JSON.stringify($items().map(item => item.json)))\n} }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        992,
+        -96
+      ],
+      "id": "92a1cc12-cb3b-4025-99ed-6d656936143e",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "content": "Save Products and business info to firebase\n"
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        320,
+        -240
+      ],
+      "id": "ba0a051a-41c7-4a0e-b4ea-f0c603375656",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "url": "=http://host.docker.internal:3000/next-product/{{ $json.businessId }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1200,
+        -96
+      ],
+      "id": "9b477602-976d-4599-991e-70126c5d0f22",
+      "name": "HTTP Request1",
+      "alwaysOutputData": true,
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "path": "e09e540a-44b3-4ad3-bcc8-231a6ae0de80",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        992,
+        80
+      ],
+      "id": "0ea82237-04cc-4d4b-91f3-e4189cd5ff4e",
+      "name": "Webhook1",
+      "webhookId": "e09e540a-44b3-4ad3-bcc8-231a6ae0de80"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Extract from File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract from File": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Generate Caption1": {
+      "main": [
+        []
+      ]
+    },
+    "HTTP Request1": {
+      "main": [
+        [
+          {
+            "node": "OpenAI Generate Caption1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook1": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "0098ded1-67ab-49ac-a2c7-7125b8e87842",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "f22cf1a49525784c999d062183dd9dfc0e223fa4bafbbd81e2aaad3b9ec2b890"
+  },
+  "id": "CqPvaNG2PESfiIaI",
+  "tags": []
+}
