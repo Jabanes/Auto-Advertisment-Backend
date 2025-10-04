@@ -1,0 +1,47 @@
+name: Deploy Auto-Advertisment Backend to VPS
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Step 1: Checkout the repository
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      # Step 2: Setup SSH using the private key stored in GitHub Secrets
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.8.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      # Step 3: Connect to your Hostinger VPS and deploy
+      - name: Deploy on VPS
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} << 'EOF'
+            set -e
+
+            echo "🚀 Starting deployment for Auto-Advertisment Backend"
+
+            # Navigate to backend directory on the server
+            cd /root/backend/Auto-Advertisment-Backend
+
+            # Pull latest changes from GitHub
+            git pull origin main
+
+            # Rebuild the Docker service for Auto-Advertisment
+            docker compose build auto-advertisment
+
+            # Restart the container with the new image
+            docker compose up -d auto-advertisment
+
+            # Clean up unused Docker images to free space
+            docker image prune -f
+
+            echo "✅ Deployment complete and running in production"
+          EOF
