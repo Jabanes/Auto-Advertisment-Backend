@@ -9,7 +9,7 @@ This document outlines all pending development and deployment tasks for the **Au
 **Goal:** Automatically deploy changes to the production server when updates are pushed to the `main` branch.
 
 ### Tasks
-- [ ] Create a **GitHub repository** for the `Auto-Advertisment` backend (Node.js service).  
+- [ ✅ ] Create a **GitHub repository** for the `Auto-Advertisment` backend (Node.js service).  
 - [ ] Add a `.gitignore` to exclude sensitive files (e.g., `serviceAccountKey.json`, `.env`, credentials, etc.).
 - [ ] Configure **GitHub Actions** (or an alternative CI tool) with:
   - Trigger: `on push to main`
