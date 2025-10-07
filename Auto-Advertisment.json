@@ -46,7 +46,7 @@
               "content": "=You are a professional marketing copywriter and AI prompt engineer.\n\nYour task:\nFor every product JSON you receive, output a single JSON object with exactly two fields:\n1. \"advertisementText\": A short, persuasive Hebrew ad caption written as if the business owner is inviting customers.  \n   - Must be professional, authentic, and sales-oriented.  \n   - Include the price if available.  \n   - Always end with a clear call-to-action.  \n   - No emojis, no slang, no unnecessary quotes inside the string.  \n\n2. \"imagePrompt\": A descriptive English prompt for an AI image generator.  \n   - Always include the original product image URL (ImageUrl) with instructions to keep the product unchanged.  \n   - Describe how to embed the product into a professional advertisement scene.  \n   - Use commercial photography style keywords (lighting, background, composition).  \n   - Output in fluent English, no Hebrew here.  \n\n⚠️ STRICT RULES:\n- Output must be a single valid JSON object only, no text before or after.  \n- Escape any quotes inside values properly.  \n- Do not wrap the response in Markdown, triple backticks, or explanation.  \n"
             },
             {
-              "content": "=={{ (() => {\n  const f = $json;\n\n  const fields = {\n    name:        f.name ?? f.Name ?? f.productName,\n    price:       f.price ?? f.Price,\n    description: f.description ?? f.Description,\n    imageUrl:    f.imageUrl ?? f.ImageUrl,\n    businessName:f.businessName ?? f.BusinessName,\n    discount:    f.discount ?? f.Discount,\n    currency:    f.currency ?? f.Currency,\n  };\n\n  for (const k of Object.keys(fields)) {\n    const v = fields[k];\n    if (!v || String(v).toLowerCase() === 'undefined') delete fields[k];\n  }\n\n  return `Here is the product JSON:\n${JSON.stringify(fields)}\n\nGenerate the output in the exact format defined in the system prompt.`;\n})() }}\n"
+              "content": "=={{ (() => {\n  const f = $json;\n\n  const fields = {\n    name:        f.name ?? f.Name ?? f.productName,\n    price:       f.price ?? f.Price,\n    description: f.description ?? f.Description,\n    businessName:f.businessName ?? f.BusinessName,\n    discount:    f.discount ?? f.Discount,\n    currency:    f.currency ?? f.Currency,\n  };\n\n  for (const k of Object.keys(fields)) {\n    const v = fields[k];\n    if (!v || String(v).toLowerCase() === 'undefined') delete fields[k];\n  }\n\n  return `You are a professional marketing copywriter and AI prompt engineer specialized in commercial visual advertising.\n\nYour job is to analyze the following product data and generate a JSON object with two fields only:\n1. \"advertisementText\": A short, persuasive Hebrew caption that sounds like a real business owner inviting customers.  \n   - Write in fluent, professional Hebrew.  \n   - Include the price if available.  \n   - Keep it elegant, credible, and focused on conversion.  \n   - Always end with a clear call-to-action.  \n   - No emojis, no slang, no unnecessary quotes.\n\n2. \"imagePrompt\": A detailed English prompt for a commercial-style AI image generator.  \n   - Assume the product image file has been uploaded and is available to you as a visual reference.  \n   - Instruct: \"Use the exact product image as originally provided; do not alter the product itself.\"  \n   - Understand the product context:  \n       • If it’s clothing → describe a professional fashion-shoot scene with a model wearing it, like top fashion brands.  \n       • If it’s an accessory → present it in a stylish lifestyle or luxury environment that fits its target audience.  \n       • If it’s tech → create a modern, minimalist studio setup with clean lines and soft lighting.  \n       • If it’s food or cosmetics → design a premium commercial scene emphasizing freshness, color, and packaging.  \n       • Otherwise → imagine the most effective ad concept to attract customers.  \n   - Include references to lighting, background, camera angle, and tone (studio, lifestyle, luxury, etc.).  \n   - Write in fluent, natural English only.\n\n⚠️ STRICT OUTPUT RULES:\n- Output must be a single valid JSON object only.  \n- Escape quotes correctly.  \n- Do not include explanations, markdown, or extra text.\n\nHere is the product JSON to analyze:\n${JSON.stringify(fields, null, 2)}`;\n})() }}\n"
             }
           ]
         },
@@ -114,8 +114,8 @@
       ],
       "id": "9b477602-976d-4599-991e-70126c5d0f22",
       "name": "HTTP Request1",
-      "alwaysOutputData": true,
-      "executeOnce": true
+      "alwaysOutputData": false,
+      "executeOnce": false
     },
     {
       "parameters": {
@@ -212,6 +212,24 @@
       ],
       "id": "caac8c6a-f491-43eb-a2d1-3e8736415423",
       "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://ads.srv1040889.hstgr.cloud/generate-ad-image",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"businessId\": \"{{ $('HTTP Request1').item.json.businessId }}\",\n  \"productId\": \"{{ $('HTTP Request1').item.json.productId }}\"\n}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1664,
+        128
+      ],
+      "id": "b47c6268-0743-4592-a184-41a61794bd2d",
+      "name": "HTTP Request4"
     }
   ],
   "pinData": {},
@@ -292,13 +310,24 @@
           }
         ]
       ]
+    },
+    "HTTP Request3": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "active": true,
   "settings": {
     "executionOrder": "v1"
   },
-  "versionId": "28fa6c06-2b83-4e01-b143-84d3a2123d5b",
+  "versionId": "1be9d352-6799-4c3d-b74e-77c2681e3d30",
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "2d26db11a1e0b40eab8bf56afc51e576ff38f35c52ec52a2996c87ceadcc462a"
