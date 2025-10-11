@@ -5,12 +5,11 @@
 
 const express = require("express");
 const router = express.Router();
-const jwt = require("jsonwebtoken");
-const { OAuth2Client } = require("google-auth-library");
 const { admin, db } = require("../config/firebase");
 const { generateAccessToken, generateRefreshToken } = require("../services/jwtService");
-
-const googleClient = new OAuth2Client(process.env.GOOGLE_WEB_CLIENT_ID);
+const { createUser } = require("../models/UserModel");
+const { createBusiness } = require("../models/BusinessModel");
+const { createProduct } = require("../models/ProductModel");
 
 // -------------------------------------------------------------------
 // 🔐 GOOGLE SIGN-IN
@@ -19,79 +18,81 @@ router.post("/google", async (req, res) => {
   try {
     const { idToken } = req.body;
     if (!idToken) {
-      return res.status(400).json({
-        success: false,
-        error: "Missing idToken",
-        code: "auth/missing-id-token",
-      });
+      return res.status(400).json({ success: false, error: "Missing idToken" });
     }
 
-    let decoded;
+    // Verify Google ID token
+    const decoded = await admin.auth().verifyIdToken(idToken);
+    const uid = decoded.uid;
+    const email = decoded.email;
+    const name = decoded.name || "User";
+    const picture = decoded.picture || null;
+
+    // Ensure user exists in Firebase Authentication
+    let userRecord;
     try {
-      // Try verifying as Firebase token
-      decoded = await admin.auth().verifyIdToken(idToken);
-      console.log("✅ Firebase ID token verified.");
-    } catch (firebaseErr) {
-      // Fallback to Google OAuth verification
-      console.log("ℹ️ Falling back to Google OAuth verification...");
-      const ticket = await googleClient.verifyIdToken({
-        idToken,
-        audience: process.env.GOOGLE_WEB_CLIENT_ID,
-      });
-      decoded = ticket.getPayload();
-    }
-
-    const { sub, email, name, picture } = decoded;
-    const uid = decoded.uid || sub;
-    const displayName = name || "Google User";
-    const photoURL = picture || null;
-    const emailVerified = decoded.email_verified ?? true;
-
-    console.log("✅ Google token verified for:", email);
-
-    const userRef = db.collection("users").doc(uid);
-    const userDoc = await userRef.get();
-    const now = admin.firestore.FieldValue.serverTimestamp();
-
-    if (!userDoc.exists) {
-      console.log("🆕 Creating Firestore user for:", email);
-      await userRef.set({
+      userRecord = await admin.auth().getUser(uid);
+    } catch (e) {
+      userRecord = await admin.auth().createUser({
         uid,
         email,
-        displayName,
-        photoURL,
-        provider: "google.com",
-        emailVerified,
-        createdAt: now,
-        lastLoginAt: now,
+        displayName: name,
+        photoURL: picture,
       });
-    } else {
-      console.log("🔁 Updating last login for:", email);
-      await userRef.update({ lastLoginAt: now });
+    }
+
+    // Create user doc if missing
+    const userRef = db.collection("users").doc(uid);
+    const userDoc = await userRef.get();
+
+    if (!userDoc.exists) {
+      const userData = createUser({
+        uid,
+        email,
+        displayName: name,
+        photoURL: picture,
+        provider: "google.com", // Or extract from decoded.firebase.sign_in_provider
+      });
+      await userRef.set(userData, { merge: true });
+
+      // Create default business
+      const businessId = db.collection("users").doc(uid).collection("businesses").doc().id;
+      const businessData = createBusiness({
+        businessId,
+        name: `${name.split(" ")[0]}'s Business`,
+        description: "Your default business workspace",
+      });
+
+      await userRef.collection("businesses").doc(businessId).set(businessData);
+
+      // Create default sample product
+      const productId = db.collection("users").doc(uid).collection("businesses").doc(businessId).collection("products").doc().id;
+
+      const productData = createProduct({
+        id: productId,
+        name: "Sample Product",
+        price: 0,
+        description: "This is your first demo product.",
+      });
+
+      await userRef.collection("businesses").doc(businessId).collection("products").doc(productId).set(productData);
     }
 
     const accessToken = generateAccessToken(uid);
     const refreshToken = generateRefreshToken(uid);
 
-    const user = { uid, email, displayName, photoURL, emailVerified, provider: "google.com" };
-
-    res.status(200).json({
+    // Return success
+    res.json({
       success: true,
       message: "Google Sign-In successful",
-      user,
+      uid,
+      email,
       accessToken,
       refreshToken,
     });
-
-    console.log("🚀 Google Sign-In flow completed for:", email);
   } catch (err) {
     console.error("❌ Google Sign-In failed:", err);
-    res.status(401).json({
-      success: false,
-      error: "Invalid or expired Google token",
-      message: err.message,
-      code: "auth/invalid-id-token",
-    });
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 
