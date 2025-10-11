@@ -1,20 +1,27 @@
-const jwt = require("jsonwebtoken");
-
-const {
-  JWT_SECRET = "super_secret_key",
-  ACCESS_TOKEN_EXPIRES_IN = "1h",
-  REFRESH_TOKEN_EXPIRES_IN = "7d",
-} = process.env;
-
-function generateAccessToken(uid) {
-  return jwt.sign({ uid }, JWT_SECRET, { expiresIn: ACCESS_TOKEN_EXPIRES_IN });
-}
-
-function generateRefreshToken(uid) {
-  return jwt.sign({ uid, type: "refresh" }, JWT_SECRET, { expiresIn: REFRESH_TOKEN_EXPIRES_IN });
-}
+/**
+ * ⚠️  DEPRECATED - DO NOT USE
+ * 
+ * This file is kept for reference only.
+ * The app now uses Firebase ID tokens exclusively.
+ * 
+ * Custom JWT generation has been removed in favor of:
+ * - Client: firebase.auth().currentUser.getIdToken()
+ * - Server: admin.auth().verifyIdToken()
+ * 
+ * If you see imports of this file anywhere, they should be removed.
+ * 
+ * Migration date: 2025-10-11
+ */
 
 module.exports = {
-  generateAccessToken,
-  generateRefreshToken,
+  // Deprecated functions - do not use
+  generateAccessToken: () => {
+    throw new Error("DEPRECATED: Use Firebase ID tokens instead");
+  },
+  generateRefreshToken: () => {
+    throw new Error("DEPRECATED: Use Firebase ID tokens instead");
+  },
+  verifyToken: () => {
+    throw new Error("DEPRECATED: Use admin.auth().verifyIdToken() instead");
+  },
 };

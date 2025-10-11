@@ -1,6 +1,9 @@
 /**
- * Product Routes — uses the new nested structure:
- * /users/{uid}/businesses/{businessId}/products/{productId}
+ * 🔐 Product Routes with Firebase-Only Authentication
+ * 
+ * All routes use Firebase ID tokens verified by middleware.
+ * Data structure: /users/{uid}/businesses/{businessId}/products/{productId}
+ * Security: req.user.uid from verified Firebase token ensures user owns the data
  */
 
 const express = require("express");
@@ -22,7 +25,7 @@ router.post("/upload", verifyAccessToken, async (req, res) => {
     let { businessId, businessInfo, products } = req.body;
 
     if (!uid || !businessId || !products) {
-      return res.statusstatus(400).json({
+      return res.status(400).json({
         success: false,
         error: "Missing uid, businessId, or products",
       });
@@ -104,13 +107,17 @@ router.get("/next/:businessId", verifyAccessToken, async (req, res) => {
 });
 
 // ------------------------------------------------------------------
-// Update product advertisement or enrichment info
+// Update ANY product field(s) dynamically
 // ------------------------------------------------------------------
-router.post("/update/:businessId/:productId", verifyAccessToken, async (req, res) => {
+router.patch("/update/:businessId/:productId", verifyAccessToken, async (req, res) => {
   try {
     const uid = req.user.uid;
     const { businessId, productId } = req.params;
-    const { advertisementText, imagePrompt } = req.body;
+    const updates = req.body; // dynamic fields to update
+
+    if (!updates || Object.keys(updates).length === 0) {
+      return res.status(400).json({ success: false, error: "No update fields provided" });
+    }
 
     const productRef = db
       .collection("users")
@@ -120,17 +127,22 @@ router.post("/update/:businessId/:productId", verifyAccessToken, async (req, res
       .collection("products")
       .doc(productId);
 
+    // Merge only provided fields
     await productRef.set(
       {
-        advertisementText: advertisementText || null,
-        imagePrompt: imagePrompt || null,
-        status: "enriched", // ✅ new unified status
+        ...updates,
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       },
       { merge: true }
     );
 
-    res.json({ success: true, message: `Updated product ${productId} → status: enriched` });
+    const updatedDoc = await productRef.get();
+
+    res.json({
+      success: true,
+      message: `✅ Product ${productId} updated successfully`,
+      product: { id: productId, ...updatedDoc.data() },
+    });
   } catch (err) {
     console.error("❌ Error updating product:", err);
     res.status(500).json({ success: false, error: "Internal server error" });
