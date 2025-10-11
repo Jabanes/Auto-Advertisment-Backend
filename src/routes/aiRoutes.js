@@ -1,5 +1,15 @@
 /**
  * AI Routes — image generation using OpenAI for nested user structure
+ *
+ * 🔄 Integrates with the unified `status` field:
+ *    - "pending"   → waiting for enrichment
+ *    - "enriched"  → AI-generated ad content created
+ *    - "posted"    → successfully posted or finalized
+ *
+ * TODO:
+ *   - When automatic posting workflow (e.g., to Instagram/Facebook) is complete,
+ *     update the product `status` from "enriched" → "posted".
+ *   - Deprecate any workflow references to "isEnriched"/"isPosted" entirely.
  */
 
 const express = require("express");
@@ -14,6 +24,7 @@ const FormData = require("form-data");
 const fs = require("fs");
 const path = require("path");
 const os = require("os");
+const { STATUS } = require("../constants/statusEnum");
 
 router.post("/generate-ad-image", verifyAccessToken, async (req, res) => {
   try {
@@ -33,25 +44,35 @@ router.post("/generate-ad-image", verifyAccessToken, async (req, res) => {
       .doc(productId);
 
     const productDoc = await productRef.get();
-    if (!productDoc.exists) return res.status(404).json({ success: false, error: "Product not found" });
+    if (!productDoc.exists)
+      return res.status(404).json({ success: false, error: "Product not found" });
 
     const product = productDoc.data();
     const { imageUrl, imagePrompt } = product;
+
     if (!imageUrl || !imagePrompt)
       return res.status(400).json({ success: false, error: "Missing imageUrl or imagePrompt" });
 
-    // Download + convert
+    // ----------------------------------------------------
+    // Step 1: Download + convert original image to PNG
+    // ----------------------------------------------------
     const imageResponse = await fetch(imageUrl);
     const buffer = Buffer.from(await imageResponse.arrayBuffer());
     const pngBuffer = await sharp(buffer).png().toBuffer();
     const tmpFile = path.join(os.tmpdir(), `${productId}.png`);
     fs.writeFileSync(tmpFile, pngBuffer);
 
+    // ----------------------------------------------------
+    // Step 2: Send image + prompt to OpenAI for editing
+    // ----------------------------------------------------
     const form = new FormData();
     form.append("model", "gpt-image-1");
     form.append("prompt", imagePrompt);
     form.append("size", "1024x1024");
-    form.append("image", fs.createReadStream(tmpFile), { filename: `${productId}.png`, contentType: "image/png" });
+    form.append("image", fs.createReadStream(tmpFile), {
+      filename: `${productId}.png`,
+      contentType: "image/png",
+    });
 
     const openaiResp = await fetch("https://api.openai.com/v1/images/edits", {
       method: "POST",
@@ -67,22 +88,45 @@ router.post("/generate-ad-image", verifyAccessToken, async (req, res) => {
     if (!data?.data?.[0]?.b64_json)
       return res.status(500).json({ success: false, error: "OpenAI did not return valid image data" });
 
+    // ----------------------------------------------------
+    // Step 3: Upload to Firebase Storage
+    // ----------------------------------------------------
     const generatedBuffer = Buffer.from(data.data[0].b64_json, "base64");
-
     const bucket = storage.bucket(FIREBASE_STORAGE_BUCKET);
     const filePath = `generated_ads/${uid}/${businessId}/${productId}.png`;
     const file = bucket.file(filePath);
 
-    await file.save(generatedBuffer, { metadata: { contentType: "image/png" }, public: true });
+    await file.save(generatedBuffer, {
+      metadata: { contentType: "image/png" },
+      public: true,
+    });
 
     const publicUrl = `https://storage.googleapis.com/${FIREBASE_STORAGE_BUCKET}/${filePath}`;
-    await productRef.set({ generatedImageUrl: publicUrl }, { merge: true });
+
+    // ----------------------------------------------------
+    // Step 4: Update Firestore (status → "enriched")
+    // ----------------------------------------------------
+    await productRef.set(
+      {
+        generatedImageUrl: publicUrl,
+        status: STATUS.ENRICHED,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    );
 
     res.json({
       success: true,
       message: `Generated advertisement image for ${productId}`,
       generatedImageUrl: publicUrl,
     });
+
+    // ----------------------------------------------------
+    // TODO (future step):
+    // After posting the generated ad to social media or marketplace,
+    // update:
+    //   await productRef.set({ status: "posted", postDate: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+    // ----------------------------------------------------
   } catch (err) {
     console.error("❌ Error generating ad image:", err);
     res.status(500).json({ success: false, error: "Internal server error" });

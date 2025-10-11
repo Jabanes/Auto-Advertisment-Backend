@@ -11,6 +11,7 @@ const { db } = require("../config/firebase");
 const { verifyAccessToken } = require("../middleware/authMiddleware");
 const { createProduct } = require("../models/ProductModel");
 const { createBusiness } = require("../models/BusinessModel");
+const { STATUS } = require("../constants/statusEnum");
 
 // ------------------------------------------------------------------
 // Upload products for a business (under a user)
@@ -21,7 +22,7 @@ router.post("/upload", verifyAccessToken, async (req, res) => {
     let { businessId, businessInfo, products } = req.body;
 
     if (!uid || !businessId || !products) {
-      return res.status(400).json({
+      return res.statusstatus(400).json({
         success: false,
         error: "Missing uid, businessId, or products",
       });
@@ -50,7 +51,11 @@ router.post("/upload", verifyAccessToken, async (req, res) => {
       const productId =
         product.id || crypto.createHash("md5").update(product.name || product.Name || "unnamed").digest("hex");
       const productRef = businessRef.collection("products").doc(productId);
-      batch.set(productRef, createProduct({ id: productId, ...product }), { merge: true });
+      batch.set(
+        productRef,
+        createProduct({ id: productId, ...product, status: STATUS.PENDING }),
+        { merge: true }
+      );
     });
 
     await batch.commit();
@@ -75,14 +80,14 @@ router.get("/next/:businessId", verifyAccessToken, async (req, res) => {
     const uid = req.user.uid;
     const { businessId } = req.params;
 
+    // ✅ Instead of isPosted/isEnriched, use unified status
     const snapshot = await db
       .collection("users")
       .doc(uid)
       .collection("businesses")
       .doc(businessId)
       .collection("products")
-      .where("isPosted", "==", false)
-      .where("isEnriched", "==", false)
+      .where("status", "==", "pending")
       .limit(1)
       .get();
 
@@ -119,17 +124,25 @@ router.post("/update/:businessId/:productId", verifyAccessToken, async (req, res
       {
         advertisementText: advertisementText || null,
         imagePrompt: imagePrompt || null,
-        isEnriched: true,
+        status: "enriched", // ✅ new unified status
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       },
       { merge: true }
     );
 
-    res.json({ success: true, message: `Updated product ${productId}` });
+    res.json({ success: true, message: `Updated product ${productId} → status: enriched` });
   } catch (err) {
     console.error("❌ Error updating product:", err);
     res.status(500).json({ success: false, error: "Internal server error" });
   }
 });
+
+/**
+ * TODO:
+ * - Update the ad posting logic (in AI routes or workflows) to set:
+ *     status = "posted"
+ *   instead of toggling isPosted.
+ * - Update any n8n workflows that rely on isPosted/isEnriched filters.
+ */
 
 module.exports = router;
