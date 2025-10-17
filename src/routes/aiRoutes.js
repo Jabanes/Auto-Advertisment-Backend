@@ -95,12 +95,18 @@ router.post("/generate-ad-image", verifyAccessToken, async (req, res) => {
     const bucket = storage.bucket(FIREBASE_STORAGE_BUCKET);
     const filePath = `users/${uid}/businesses/${businessId}/products/${productId}/generated/${Date.now()}-generated.jpg`;
 
+    // ✅ Create the file reference before saving
+    const file = bucket.file(filePath);
+
     await file.save(generatedBuffer, {
       metadata: { contentType: "image/png" },
-      public: true,
+      resumable: false,
     });
 
-    const publicUrl = `https://storage.googleapis.com/${bucket}/${filePath}`;
+    const [publicUrl] = await file.getSignedUrl({
+      action: "read",
+      expires: "03-09-2030",
+    });
 
     // ----------------------------------------------------
     // Step 4: Update Firestore (status → "enriched")
