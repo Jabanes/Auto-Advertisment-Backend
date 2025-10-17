@@ -17,6 +17,71 @@ const { createBusiness } = require("../models/BusinessModel");
 const { STATUS } = require("../constants/statusEnum");
 
 // ------------------------------------------------------------------
+// Upload single image to Firebase Storage — replaces old ones
+// ------------------------------------------------------------------
+const multer = require("multer");
+const { getStorage } = require("firebase-admin/storage");
+const upload = multer({ storage: multer.memoryStorage() });
+const path = require("path");
+
+router.post(
+  "/upload/:businessId/:productId",
+  verifyAccessToken,
+  upload.single("file"),
+  async (req, res) => {
+    try {
+      const uid = req.user.uid;
+      const { businessId, productId } = req.params;
+      const file = req.file;
+
+      if (!file) {
+        return res.status(400).json({ success: false, error: "No file provided" });
+      }
+
+      const storage = getStorage();
+      const bucket = storage.bucket();
+
+      // 🧹 1️⃣ Delete any existing files in the product folder
+      const prefix = `users/${uid}/businesses/${businessId}/products/${productId}/`;
+      const [existingFiles] = await bucket.getFiles({ prefix });
+      for (const f of existingFiles) {
+        await f.delete().catch(() => null);
+      }
+
+      // 📸 2️⃣ Upload the new image
+      const newFilePath = `${prefix}${Date.now()}-${file.originalname}`;
+      const fileRef = bucket.file(newFilePath);
+
+      await fileRef.save(file.buffer, {
+        metadata: { contentType: file.mimetype },
+        resumable: false,
+      });
+
+      // 🔗 3️⃣ Generate signed URL
+      const [url] = await fileRef.getSignedUrl({
+        action: "read",
+        expires: "03-09-2030",
+      });
+
+      // 💾 4️⃣ Save image URL in Firestore
+      const productRef = db
+        .collection("users")
+        .doc(uid)
+        .collection("businesses")
+        .doc(businessId)
+        .collection("products")
+        .doc(productId);
+
+      await productRef.set({ imageUrl: url }, { merge: true });
+
+      res.json({ success: true, url });
+    } catch (err) {
+      console.error("❌ Error uploading image:", err);
+      res.status(500).json({ success: false, error: "Failed to upload image" });
+    }
+  }
+);
+// ------------------------------------------------------------------
 // Upload products for a business (under a user)
 // ------------------------------------------------------------------
 router.post("/upload", verifyAccessToken, async (req, res) => {

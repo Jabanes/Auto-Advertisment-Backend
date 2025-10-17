@@ -12,6 +12,7 @@ const serviceAccount = require(path.join(__dirname, "../../serviceAccountKey.jso
 // Initialize Firebase Admin SDK
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
+  storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
 });
 
 // Export Firestore + Storage references for global use
