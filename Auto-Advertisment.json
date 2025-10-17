@@ -1,65 +1,79 @@
 {
-  "name": "Auto-Advertisment",
+  "name": "Auto-Advertisement v2",
   "nodes": [
     {
       "parameters": {
         "httpMethod": "POST",
-        "path": "upload-excel",
-        "responseMode": "lastNode",
+        "path": "auto-enrich",
+        "responseMode": "responseNode",
         "options": {}
       },
-      "id": "eff817b5-d933-4d34-b2c6-a6b04d722c25",
-      "name": "Webhook",
+      "id": "6c7ab8cd-8ba4-4ee2-bdeb-bf34bf635405",
+      "name": "Webhook /auto-enrich",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
       "position": [
-        560,
-        -96
+        1200,
+        464
       ],
-      "webhookId": "29ba1991-f925-4eb7-9154-d8b3936f1c15"
+      "webhookId": "c8ab12f0-ffc5-428c-b446-eb8c58516261"
     },
     {
       "parameters": {
-        "operation": "xlsx",
-        "binaryPropertyName": "file",
-        "options": {
-          "headerRow": true
-        }
+        "url": "={{`https://ads.srv1040889.hstgr.cloud/next-product/${$json.body.businessId}`}}",
+        "options": {}
       },
-      "id": "d37aabdc-a7ce-4404-b6b2-cc8f29af0646",
-      "name": "Extract from File",
-      "type": "n8n-nodes-base.extractFromFile",
-      "typeVersion": 1,
+      "id": "4b1f71ad-1b3b-4ec9-80c0-20ca486fccd7",
+      "name": "HTTP → Get Pending Product",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
       "position": [
-        784,
-        -96
+        1408,
+        464
       ]
     },
     {
       "parameters": {
+        "httpMethod": "POST",
+        "path": "enrich-product",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "4ef9dc3d-9a3e-4c94-add8-21f79b34615f",
+      "name": "Webhook /enrich-product",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        1408,
+        272
+      ],
+      "webhookId": "73fce29e-282e-4527-92d1-b477563f8f72"
+    },
+    {
+      "parameters": {
         "resource": "chat",
-        "model": "gpt-4o-mini",
+        "model": "gpt-4o",
         "prompt": {
           "messages": [
             {
               "role": "system",
-              "content": "=You are a professional marketing copywriter and AI prompt engineer.\n\nYour task:\nFor every product JSON you receive, output a single JSON object with exactly two fields:\n1. \"advertisementText\": A short, persuasive Hebrew ad caption written as if the business owner is inviting customers.  \n   - Must be professional, authentic, and sales-oriented.  \n   - Include the price if available.  \n   - Always end with a clear call-to-action.  \n   - No emojis, no slang, no unnecessary quotes inside the string.  \n\n2. \"imagePrompt\": A descriptive English prompt for an AI image generator.  \n   - Always include the original product image URL (ImageUrl) with instructions to keep the product unchanged.  \n   - Describe how to embed the product into a professional advertisement scene.  \n   - Use commercial photography style keywords (lighting, background, composition).  \n   - Output in fluent English, no Hebrew here.  \n\n⚠️ STRICT RULES:\n- Output must be a single valid JSON object only, no text before or after.  \n- Escape any quotes inside values properly.  \n- Do not wrap the response in Markdown, triple backticks, or explanation.  \n"
+              "content": "You are a professional marketing copywriter and AI prompt engineer.\n\nFor every product JSON you receive, output one JSON object with exactly two fields:\n1. \"advertisementText\" – short persuasive Hebrew ad caption written as if the business owner invites customers. Include price if available, end with call-to-action, no emojis or slang.\n2. \"imagePrompt\" – descriptive English prompt for an AI image generator. Mention the product image URL and describe a professional advertisement scene (lighting, composition, background, etc.).\n\nOutput must be a single valid JSON object, no markdown or explanations."
             },
             {
-              "content": "=={{ (() => {\n  const f = $json;\n\n  const fields = {\n    name:        f.name ?? f.Name ?? f.productName,\n    price:       f.price ?? f.Price,\n    description: f.description ?? f.Description,\n    businessName:f.businessName ?? f.BusinessName,\n    discount:    f.discount ?? f.Discount,\n    currency:    f.currency ?? f.Currency,\n  };\n\n  for (const k of Object.keys(fields)) {\n    const v = fields[k];\n    if (!v || String(v).toLowerCase() === 'undefined') delete fields[k];\n  }\n\n  return `You are a professional marketing copywriter and AI prompt engineer specialized in commercial visual advertising.\n\nYour job is to analyze the following product data and generate a JSON object with two fields only:\n1. \"advertisementText\": A short, persuasive Hebrew caption that sounds like a real business owner inviting customers.  \n   - Write in fluent, professional Hebrew.  \n   - Include the price if available.  \n   - Keep it elegant, credible, and focused on conversion.  \n   - Always end with a clear call-to-action.  \n   - No emojis, no slang, no unnecessary quotes.\n\n2. \"imagePrompt\": A detailed English prompt for a commercial-style AI image generator.  \n   - Assume the product image file has been uploaded and is available to you as a visual reference.  \n   - Instruct: \"Use the exact product image as originally provided; do not alter the product itself.\"  \n   - Understand the product context:  \n       • If it’s clothing → describe a professional fashion-shoot scene with a model wearing it, like top fashion brands.  \n       • If it’s an accessory → present it in a stylish lifestyle or luxury environment that fits its target audience.  \n       • If it’s tech → create a modern, minimalist studio setup with clean lines and soft lighting.  \n       • If it’s food or cosmetics → design a premium commercial scene emphasizing freshness, color, and packaging.  \n       • Otherwise → imagine the most effective ad concept to attract customers.  \n   - Include references to lighting, background, camera angle, and tone (studio, lifestyle, luxury, etc.).  \n   - Write in fluent, natural English only.\n\n⚠️ STRICT OUTPUT RULES:\n- Output must be a single valid JSON object only.  \n- Escape quotes correctly.  \n- Do not include explanations, markdown, or extra text.\n\nHere is the product JSON to analyze:\n${JSON.stringify(fields, null, 2)}`;\n})() }}\n"
+              "content": "=={{JSON.stringify($json, null, 2)}}\n"
             }
           ]
         },
         "options": {},
         "requestOptions": {}
       },
-      "id": "637cec73-a2fc-4fee-832e-e531fec0e448",
-      "name": "OpenAI Generate Caption1",
+      "id": "59ce0427-5576-44ee-a078-4fb80a3f49d1",
+      "name": "OpenAI → Generate Caption & Prompt",
       "type": "n8n-nodes-base.openAi",
       "typeVersion": 1,
       "position": [
-        1008,
-        128
+        1856,
+        400
       ],
       "credentials": {
         "openAiApi": {
@@ -70,252 +84,147 @@
     },
     {
       "parameters": {
-        "method": "POST",
-        "url": "https://ads.srv1040889.hstgr.cloud/upload-products",
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ {\n  \"businessId\": \"yQB2mZ6EGAqNuvZMKu27\",\n  \"businessInfo\": {\n    \"name\": \"Test Shop\",\n    \"owner\": \"John Doe\"\n  },\n  \"products\": JSON.parse(JSON.stringify($items().map(item => item.json)))\n} }}",
-        "options": {}
+        "jsCode": "// 🧠 Parse OpenAI response safely and reattach identifiers\nreturn $input.all().map(item => {\n  const raw = item.json?.message?.content ?? '';\n  let parsed = {};\n\n  // --- Try parsing OpenAI JSON ---\n  try {\n    parsed = JSON.parse(raw);\n  } catch (e) {\n    try {\n      const clean = raw\n        .replace(/```json|```/g, '') // strip code fences\n        .replace(/(\\r\\n|\\n|\\r)/gm, ' ')\n        .replace(/\\s+/g, ' ')\n        .trim();\n      parsed = JSON.parse(clean);\n    } catch {\n      parsed = { advertisementText: raw, imagePrompt: '' };\n    }\n  }\n\n  const strip = s =>\n    typeof s === 'string' ? s.replace(/[\\r\\n]+/g, ' ').trim() : '';\n\n  // ✅ Pull metadata from the original webhook node instead of current item\n  const webhookData = $('Webhook /enrich-product').first().json.body || {};\n\n  const businessId =\n    webhookData.businessId ||\n    item.json.businessId ||\n    item.json.body?.businessId ||\n    null;\n\n  const productId =\n    webhookData.product?.id ||\n    webhookData.productId ||\n    item.json.productId ||\n    item.json.body?.productId ||\n    null;\n\n  const accessToken =\n    webhookData.accessToken ||\n    item.json.accessToken ||\n    item.json.body?.accessToken ||\n    null;\n\n  return {\n    json: {\n      businessId,\n      productId,\n      accessToken,\n      advertisementText: strip(parsed.advertisementText || ''),\n      imagePrompt: strip(parsed.imagePrompt || ''),\n    },\n  };\n});\n"
       },
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        1008,
-        -96
-      ],
-      "id": "92a1cc12-cb3b-4025-99ed-6d656936143e",
-      "name": "HTTP Request"
-    },
-    {
-      "parameters": {
-        "content": "Handles the upload of an Excel file containing products from a business.\nThis workflow parses the file, structures the data, and sends it to the backend so all products are stored and ready for later processing.",
-        "height": 128,
-        "width": 464
-      },
-      "type": "n8n-nodes-base.stickyNote",
-      "typeVersion": 1,
-      "position": [
-        32,
-        -96
-      ],
-      "id": "ba0a051a-41c7-4a0e-b4ea-f0c603375656",
-      "name": "Sticky Note"
-    },
-    {
-      "parameters": {
-        "url": "=https://ads.srv1040889.hstgr.cloud/next-product/{{ $json.body.businessId }}",
-        "options": {}
-      },
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        784,
-        128
-      ],
-      "id": "9b477602-976d-4599-991e-70126c5d0f22",
-      "name": "HTTP Request1",
-      "alwaysOutputData": false,
-      "executeOnce": false
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "https://n8n.srv1040889.hstgr.cloud/webhook/6981caee-1043-47fd-89bb-767566753e05",
-        "sendBody": true,
-        "bodyParameters": {
-          "parameters": [
-            {
-              "name": "businessId",
-              "value": "={{ $json.businessId }}"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        1232,
-        -96
-      ],
-      "id": "b17425e1-837c-4656-9710-337b8c73ebe0",
-      "name": "HTTP Request2"
-    },
-    {
-      "parameters": {
-        "httpMethod": "POST",
-        "path": "6981caee-1043-47fd-89bb-767566753e05",
-        "options": {}
-      },
-      "type": "n8n-nodes-base.webhook",
-      "typeVersion": 2.1,
-      "position": [
-        560,
-        128
-      ],
-      "id": "de77824e-a86b-4717-b904-586bbaa2a361",
-      "name": "Webhook1",
-      "webhookId": "6981caee-1043-47fd-89bb-767566753e05"
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "=https://ads.srv1040889.hstgr.cloud/update-product/{{ $('HTTP Request1').item.json.businessId }}/{{ $('HTTP Request1').item.json.productId }}",
-        "sendBody": true,
-        "bodyParameters": {
-          "parameters": [
-            {
-              "name": "advertisementText",
-              "value": "={{ $json.advertisementText }}"
-            },
-            {
-              "name": "=imagePrompt",
-              "value": "={{ $json.imagePrompt }}"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        1456,
-        128
-      ],
-      "id": "cec4f2d3-7569-4be4-9643-eb2dd20e78db",
-      "name": "HTTP Request3"
-    },
-    {
-      "parameters": {
-        "jsCode": "return $input.all().map(item => {\n  let raw = item.json?.message?.content ?? '';\n  let parsed = {};\n\n  try {\n    // First attempt: direct parse\n    parsed = JSON.parse(raw);\n  } catch (e) {\n    try {\n      // Cleanup: remove stray line breaks, fix escaped quotes\n      const clean = raw\n        .replace(/(\\r\\n|\\n|\\r)/gm, ' ')\n        .replace(/\\s+/g, ' ')\n        .trim();\n      parsed = JSON.parse(clean);\n    } catch (e2) {\n      // Final fallback: treat as plain text\n      parsed = { advertisementText: raw, imagePrompt: '' };\n    }\n  }\n\n  const strip = (s) => {\n    if (!s || typeof s !== \"string\") return \"\";\n    return s.replace(/[\\u2028\\u2029]/g, ' ')\n            .replace(/\\r?\\n/g, ' ')\n            .replace(/\\s+/g, ' ')\n            .trim();\n  };\n\n  return {\n    json: {\n      businessId: item.json.businessId,\n      productId: item.json.productId,\n      advertisementText: strip(parsed.advertisementText),\n      imagePrompt: strip(parsed.imagePrompt),\n    }\n  };\n});\n"
-      },
+      "id": "6262e851-766b-4249-8167-7b7279feccec",
+      "name": "Code → Parse OpenAI JSON",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1232,
-        128
-      ],
-      "id": "ec681a05-fec2-41dc-8b36-63d0247c8c8e",
-      "name": "Code in JavaScript"
+        2064,
+        400
+      ]
     },
     {
       "parameters": {
-        "content": "Takes existing products from the database and automatically generates marketing content for each — including a Hebrew advertisement caption and an English image prompt.\nIt uses OpenAI to craft both text and visual descriptions, then saves the generated data back to the backend for display or further automation.",
-        "height": 128,
-        "width": 464
+        "method": "PATCH",
+        "url": "=https://ads.srv1040889.hstgr.cloud/products/update/{{ $json.businessId }}/{{ $json.productId }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "=Authorization",
+              "value": "=Bearer {{ $('Webhook /enrich-product').item.json.body.accessToken }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { advertisementText: $json.advertisementText, imagePrompt: $json.imagePrompt } }}",
+        "options": {}
       },
-      "type": "n8n-nodes-base.stickyNote",
-      "typeVersion": 1,
+      "id": "bbf4e7dd-59c8-4833-bf9a-3771557a6743",
+      "name": "HTTP → Update Product",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
       "position": [
-        32,
-        128
-      ],
-      "id": "caac8c6a-f491-43eb-a2d1-3e8736415423",
-      "name": "Sticky Note1"
+        2256,
+        400
+      ]
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "https://ads.srv1040889.hstgr.cloud/generate-ad-image",
+        "url": "https://ads.srv1040889.hstgr.cloud/ai/generate-ad-image",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $('Webhook /enrich-product').item.json.body.accessToken }}"
+            }
+          ]
+        },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"businessId\": \"{{ $('HTTP Request1').item.json.businessId }}\",\n  \"productId\": \"{{ $('HTTP Request1').item.json.productId }}\"\n}\n",
+        "jsonBody": "={\n    \"businessId\": \"{{ $json.product.businessId }}\",\n    \"productId\": \"{{ $json.product.id }}\"\n  }",
         "options": {}
       },
+      "id": "414ae63d-1f82-4b9d-9383-aab2d0e4823a",
+      "name": "HTTP → Generate Ad Image",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1664,
-        128
-      ],
-      "id": "b47c6268-0743-4592-a184-41a61794bd2d",
-      "name": "HTTP Request4"
+        2432,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "7e7b7b78-dffd-441f-8324-558284e26fe4",
+      "name": "Webhook Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        2624,
+        400
+      ]
     }
   ],
   "pinData": {},
   "connections": {
-    "Webhook": {
+    "Webhook /enrich-product": {
       "main": [
         [
           {
-            "node": "Extract from File",
+            "node": "OpenAI → Generate Caption & Prompt",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Extract from File": {
+    "HTTP → Get Pending Product": {
       "main": [
         [
           {
-            "node": "HTTP Request",
+            "node": "OpenAI → Generate Caption & Prompt",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "OpenAI Generate Caption1": {
+    "OpenAI → Generate Caption & Prompt": {
       "main": [
         [
           {
-            "node": "Code in JavaScript",
+            "node": "Code → Parse OpenAI JSON",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "HTTP Request1": {
+    "Code → Parse OpenAI JSON": {
       "main": [
         [
           {
-            "node": "OpenAI Generate Caption1",
+            "node": "HTTP → Update Product",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "HTTP Request": {
+    "HTTP → Update Product": {
       "main": [
         [
           {
-            "node": "HTTP Request2",
+            "node": "HTTP → Generate Ad Image",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Webhook1": {
+    "HTTP → Generate Ad Image": {
       "main": [
         [
           {
-            "node": "HTTP Request1",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Code in JavaScript": {
-      "main": [
-        [
-          {
-            "node": "HTTP Request3",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "HTTP Request3": {
-      "main": [
-        [
-          {
-            "node": "HTTP Request4",
+            "node": "Webhook Response",
             "type": "main",
             "index": 0
           }
@@ -327,7 +236,7 @@
   "settings": {
     "executionOrder": "v1"
   },
-  "versionId": "1be9d352-6799-4c3d-b74e-77c2681e3d30",
+  "versionId": "ed3b4d7e-5c8d-4df8-81ef-020aa81bfa3b",
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "2d26db11a1e0b40eab8bf56afc51e576ff38f35c52ec52a2996c87ceadcc462a"
