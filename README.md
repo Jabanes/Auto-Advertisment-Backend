@@ -22,7 +22,7 @@ Products are stored under /businesses/{businessId}/products/{productId}.
 
 Each product includes fields like Name, Price, Description, ImageUrl, imagePrompt, advertisementText, and generatedImageUrl.
 
-Future Direction
+Future Directionמ
 
 Move toward a user-centric hierarchy:
 
