@@ -214,6 +214,98 @@ router.patch("/update/:businessId/:productId", verifyAccessToken, async (req, re
   }
 });
 
+
+// ------------------------------------------------------------------
+// Create a single product for a business
+// ------------------------------------------------------------------
+router.post("/:businessId", verifyAccessToken, async (req, res) => {
+  try {
+    const uid = req.user.uid;
+    const { businessId } = req.params;
+    const product = req.body;
+
+    if (!product?.name) {
+      return res.status(400).json({ success: false, error: "Missing product name" });
+    }
+
+    const productId =
+      product.id ||
+      crypto.createHash("md5").update(product.name + Date.now()).digest("hex");
+
+    const productRef = db
+      .collection("users")
+      .doc(uid)
+      .collection("businesses")
+      .doc(businessId)
+      .collection("products")
+      .doc(productId);
+
+    const newProduct = createProduct({
+      id: productId,
+      businessId,
+      ...product,
+      status: STATUS.PENDING,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    await productRef.set(newProduct, { merge: true });
+
+    const saved = await productRef.get();
+    res.json({
+      success: true,
+      message: "✅ Product created successfully",
+      product: { id: productId, ...saved.data() },
+    });
+  } catch (err) {
+    console.error("❌ Error creating product:", err);
+    res.status(500).json({ success: false, error: "Internal server error" });
+  }
+});
+// ------------------------------------------------------------------
+// Delete product completely (Firestore + Storage folder)
+// ------------------------------------------------------------------
+router.delete("/:businessId/:productId", verifyAccessToken, async (req, res) => {
+  try {
+    const uid = req.user.uid;
+    const { businessId, productId } = req.params;
+
+    if (!businessId || !productId) {
+      return res.status(400).json({ success: false, error: "Missing businessId or productId" });
+    }
+
+    const productRef = db
+      .collection("users")
+      .doc(uid)
+      .collection("businesses")
+      .doc(businessId)
+      .collection("products")
+      .doc(productId);
+
+    // 🧹 1️⃣ Delete the Firestore document
+    await productRef.delete();
+
+    // 🧹 2️⃣ Delete the folder from Firebase Storage
+    const storage = getStorage();
+    const bucket = storage.bucket();
+    const prefix = `users/${uid}/businesses/${businessId}/products/${productId}/`;
+
+    const [files] = await bucket.getFiles({ prefix });
+    for (const file of files) {
+      await file.delete().catch(() => null);
+    }
+
+    res.json({
+      success: true,
+      message: `🗑️ Product ${productId} deleted completely.`,
+    });
+  } catch (err) {
+    console.error("❌ Error deleting product:", err);
+    res.status(500).json({ success: false, error: "Failed to delete product" });
+  }
+});
+
+
 /**
  * TODO:
  * - Update the ad posting logic (in AI routes or workflows) to set:
