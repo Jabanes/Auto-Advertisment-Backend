@@ -207,6 +207,16 @@ router.patch("/update/:businessId/:productId", verifyAccessToken, async (req, re
 
     const updatedDoc = await productRef.get();
 
+    // 🔔 Emit to all clients (you can later scope by room/user)
+    try {
+      const io = req.app.get("io");
+      io?.emit("product:update", {
+        id: productId,
+        businessId,
+        ...updatedDoc.data(),
+      });
+    } catch (_) {}
+
     res.json({
       success: true,
       message: `✅ Product ${productId} updated successfully`,
