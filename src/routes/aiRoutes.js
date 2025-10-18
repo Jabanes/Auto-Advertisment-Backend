@@ -118,6 +118,22 @@ router.post("/generate-ad-image", verifyAccessToken, async (req, res) => {
       { merge: true }
     );
 
+    // Fetch updated product for socket event
+    const updatedDoc = await productRef.get();
+
+    // 🔔 Emit product:updated event to user's room
+    try {
+      const io = req.app.get("io");
+      io?.to(`user:${uid}`).emit("product:updated", {
+        id: productId,
+        businessId,
+        ...updatedDoc.data(),
+      });
+      console.log(`📡 Emitted product:updated for ${productId} (status: ${STATUS.ENRICHED})`);
+    } catch (err) {
+      console.warn("⚠️ Failed to emit socket event:", err.message);
+    }
+
     console.log(`[Product] ${productId} → status set to ${STATUS.ENRICHED}`);
     res.json({
       success: true,
@@ -144,6 +160,23 @@ router.post("/generate-ad-image", verifyAccessToken, async (req, res) => {
         },
         { merge: true }
       );
+
+      // Fetch updated product for socket event
+      const failedDoc = await productRef.get();
+
+      // 🔔 Emit product:updated event with failed status
+      try {
+        const io = req.app.get("io");
+        io?.to(`user:${uid}`).emit("product:updated", {
+          id: productId,
+          businessId,
+          ...failedDoc.data(),
+        });
+        console.log(`📡 Emitted product:updated for ${productId} (status: ${STATUS.FAILED})`);
+      } catch (_) {
+        console.warn("⚠️ Failed to emit socket event");
+      }
+
       console.log(`[Product] ${productId} → status set to ${STATUS.FAILED}`);
     }
 

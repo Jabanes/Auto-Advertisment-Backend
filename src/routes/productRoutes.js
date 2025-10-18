@@ -72,7 +72,26 @@ router.post(
         .collection("products")
         .doc(productId);
 
-      await productRef.set({ imageUrl: url }, { merge: true });
+      await productRef.set({ 
+        imageUrl: url,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      }, { merge: true });
+
+      // Fetch updated product
+      const updatedDoc = await productRef.get();
+
+      // 🔔 Emit socket event to user's room
+      try {
+        const io = req.app.get("io");
+        io?.to(`user:${uid}`).emit("product:updated", {
+          id: productId,
+          businessId,
+          ...updatedDoc.data(),
+        });
+        console.log(`📡 Emitted product:updated for ${productId} (image upload)`);
+      } catch (_) {
+        console.warn("⚠️ Failed to emit socket event");
+      }
 
       res.json({ success: true, url });
     } catch (err) {
@@ -207,15 +226,18 @@ router.patch("/update/:businessId/:productId", verifyAccessToken, async (req, re
 
     const updatedDoc = await productRef.get();
 
-    // 🔔 Emit to all clients (you can later scope by room/user)
+    // 🔔 Emit to user's room only
     try {
       const io = req.app.get("io");
-      io?.emit("product:update", {
+      io?.to(`user:${uid}`).emit("product:updated", {
         id: productId,
         businessId,
         ...updatedDoc.data(),
       });
-    } catch (_) {}
+      console.log(`📡 Emitted product:updated for ${productId}`);
+    } catch (err) {
+      console.warn("⚠️ Failed to emit socket event:", err.message);
+    }
 
     res.json({
       success: true,
@@ -266,10 +288,21 @@ router.post("/:businessId", verifyAccessToken, async (req, res) => {
     await productRef.set(newProduct, { merge: true });
 
     const saved = await productRef.get();
+    const createdProduct = { id: productId, ...saved.data() };
+
+    // 🔔 Emit product:created event to user's room
+    try {
+      const io = req.app.get("io");
+      io?.to(`user:${uid}`).emit("product:created", createdProduct);
+      console.log(`📡 Emitted product:created for ${productId}`);
+    } catch (err) {
+      console.warn("⚠️ Failed to emit socket event:", err.message);
+    }
+
     res.json({
       success: true,
       message: "✅ Product created successfully",
-      product: { id: productId, ...saved.data() },
+      product: createdProduct,
     });
   } catch (err) {
     console.error("❌ Error creating product:", err);
@@ -307,6 +340,18 @@ router.delete("/:businessId/:productId", verifyAccessToken, async (req, res) => 
     const [files] = await bucket.getFiles({ prefix });
     for (const file of files) {
       await file.delete().catch(() => null);
+    }
+
+    // 🔔 Emit product:deleted event to user's room
+    try {
+      const io = req.app.get("io");
+      io?.to(`user:${uid}`).emit("product:deleted", {
+        id: productId,
+        businessId,
+      });
+      console.log(`📡 Emitted product:deleted for ${productId}`);
+    } catch (err) {
+      console.warn("⚠️ Failed to emit socket event:", err.message);
     }
 
     res.json({

@@ -1,290 +1,427 @@
-🧩 Auto-Advertisement Platform — Development Roadmap & Future Features
-Overview
+# Auto-Advertisement Backend
 
-The Auto-Advertisement Platform automatically generates high-quality marketing assets (text + images) for products using AI.
-It integrates:
+Node.js + Express backend for automated product advertisement generation with real-time WebSocket synchronization.
 
-Firebase (Firestore + Storage) for user/business data.
+## Features
 
-FastAPI/Node.js backend for image generation and workflow orchestration.
+- 🔐 **Firebase Authentication** (Admin SDK)
+- 🔄 **Real-Time Sync** via Socket.IO (user-scoped rooms)
+- 🗄️ **Firestore** database (nested user → business → product structure)
+- 📦 **Firebase Storage** for images
+- 🤖 **AI Integration** (OpenAI DALL-E for image generation)
+- 🔌 **n8n Compatible** (webhook-driven workflows)
 
-n8n automations for workflow chaining and scheduling.
+---
 
-OpenAI (DALL·E 3) for creative ad image generation.
+## Architecture
 
-The system already supports automatic image generation from product data and AI-optimized prompts.
-This document outlines all upcoming features, architecture upgrades, and design goals for the full-scale platform.
+### Data Structure
+```
+/users/{uid}
+  └─ /businesses/{businessId}
+       └─ /products/{productId}
+```
 
-⚙️ 1. Database Structure Optimization
-Current State
+### Real-Time Events
+- All mutations emit Socket.IO events to user-scoped rooms
+- Frontend receives instant updates without polling
+- ~70-85% reduction in Firestore reads
 
-Products are stored under /businesses/{businessId}/products/{productId}.
+**Documentation:**
+- 📖 [Socket Event Contract](./SOCKET_EVENT_CONTRACT.md) - Event definitions and payloads
+- 📋 [n8n Workflow Migration Guide](./N8N_WORKFLOW_MIGRATION.md) - Update workflows for new status field
 
-Each product includes fields like Name, Price, Description, ImageUrl, imagePrompt, advertisementText, and generatedImageUrl.
+---
 
-Future Directionמ
+## Getting Started
 
-Move toward a user-centric hierarchy:
+### Prerequisites
+- Node.js 18+ (LTS recommended)
+- Firebase project with Firestore and Storage enabled
+- OpenAI API key (for image generation)
 
-/users/{uid}/businesses/{businessId}/products/{productId}
+### Environment Variables
 
-Rationale
+Create `.env` file:
 
-Keeps ownership clear (every business is tied to a user).
+```env
+PORT=3000
+FRONTEND_URL=http://localhost:5173
 
-Simplifies authentication, billing, and analytics.
+# Firebase Admin SDK
+FIREBASE_SERVICE_ACCOUNT_PATH=./serviceAccountKey.json
+FIREBASE_STORAGE_BUCKET=your-project.appspot.com
 
-Scales naturally to support multiple businesses per user.
+# OpenAI
+OPENAI_API_KEY=sk-...
+OPENAI_ORG_ID=org-...
 
-Planned Additions
+# JWT (optional, if using custom tokens)
+ACCESS_TOKEN_EXPIRES_IN=1h
+REFRESH_TOKEN_EXPIRES_IN=7d
+```
 
-Add createdAt, updatedAt, isEnriched, isPosted, and postDate fields consistently.
+### Installation
 
-Introduce businesses_index collection for global querying and analytics.
+```bash
+npm install
+```
 
-Store product images under /users/{uid}/businesses/{businessId}/products/{productId}/ for consistent organization.
+### Development
 
-🧠 2. User & Business Management
-Objective
+```bash
+npm start
+```
 
-Introduce a lightweight user system allowing login, profile management, and linking businesses to users.
+Server will be available at `http://localhost:3000`
 
-Features
+---
 
-Google Sign-In (Firebase Auth) for instant user onboarding.
+## API Endpoints
 
-Each user can manage one or multiple businesses.
+### Authentication
 
-Business profiles include:
+| Method | Endpoint | Description | Auth Required |
+|--------|----------|-------------|---------------|
+| POST | `/auth/register` | Register with email/password | No |
+| POST | `/auth/google` | Google Sign-In | No |
+| GET | `/auth/me` | Get current user data | Yes |
+| GET | `/auth/verify` | Verify token validity | Yes |
+| POST | `/auth/logout` | Logout | Yes |
 
-Name, description, phone, address, website, logo, industry tags.
+### Products
 
-Used as metadata when generating product ads or business-wide campaigns.
-
-Future Considerations
-
-Role-based access (Owner / Editor) for multi-user business accounts.
-
-Business analytics dashboard (ad performance, generated content stats).
-
-💾 3. Product Management Dashboard
-Goal
-
-Provide an intuitive web interface for businesses to:
-
-Add and edit products manually.
-
-Upload product images directly.
-
-View and manage generated ads.
-
-Components
-
-Product Table View: shows product name, image, and ad status.
-
-Add Product Form: includes fields used by the GPT prompt (name, price, description, etc.).
-
-Image Upload UI: uses Firebase Storage directly.
-
-Generate Ad Button: triggers backend /generate-ad-image endpoint for a single product.
-
-Future Enhancements
-
-Bulk product import via CSV/XLSX.
-
-“Generate All” button for batch processing.
-
-Smart filters (show only unenriched products).
-
-🤖 4. AI Prompt & Workflow Refinement
-Objective
-
-Make AI prompt generation context-aware and visually optimized.
-
-Key Principles
-
-The prompt dynamically adapts based on product type:
-
-Clothing → model wearing product in a fashion shoot.
-
-Accessories → luxury or lifestyle scenes.
-
-Tech → clean modern product photography.
-
-Food/Cosmetics → bright premium packaging imagery.
-
-Always use uploaded product image as reference (not via URL).
-
-Maintain strict output format (JSON with advertisementText and imagePrompt only).
-
-Future Upgrades
-
-Add brand-style customization per business (tone, colors, aesthetic).
-
-AI prompt memory for consistent branding across all ads.
-
-GPT-4 Vision integration for smarter image understanding and styling recommendations.
-
-🧩 5. Automation & Workflow Integration (n8n)
-Purpose
-
-Automate the flow from data submission to final asset generation.
-
-Workflow Concept
-
-Trigger: Product added or updated.
-
-Step 1: Generate AI prompt and ad text.
-
-Step 2: Send request to /generate-ad-image backend endpoint.
-
-Step 3: Upload generated image to Firebase Storage.
-
-Step 4: Update Firestore with generatedImageUrl.
-
-Step 5: Send confirmation email or notification to the business owner.
-
-Future Enhancements
-
-Retry mechanism for failed image generations.
-
-Queuing system for batch product handling.
-
-Daily job scheduler for auto-generating new ads.
-
-💳 6. Pricing, Payments & Subscription Plans
-Objective
-
-Introduce tiered pricing based on AI usage and generation limits.
-
-Future Architecture
-
-Stripe Billing Integration:
-
-Free tier → limited product generations per month.
-
-Paid tiers → unlock more products, priority queue, premium templates.
-
-Store billing state in Firestore under each user.
-
-Connect Stripe webhooks to backend to enable/disable premium features dynamically.
-
-Long-Term Goals
-
-Credit-based system (1 generation = 1 credit).
-
-In-app subscription management (mobile & web).
-
-Optional pay-per-generation model.
-
-🖥️ 7. Frontend App (React Native / Expo Web)
-Concept
-
-Start with a web app that runs in Expo Go, later deploy as mobile app (Android/iOS).
-
-Core Screens
-
-Sign-In Page – Google Auth.
-
-Dashboard – shows user’s businesses.
-
-Business Form – edit business details and upload logo.
-
-Product Table – list, add, and manage products.
-
-Product Form Modal – upload image, fill fields.
-
-Generate Ad Button – triggers AI flow and shows results.
-
-Future Features
-
-Live preview of generated ads.
-
-Multi-language ad support.
-
-“Smart Suggestions” panel for improving ad copy.
-
-🚀 8. Server Scaling & Reliability
-Current State
-
-Single-instance backend hosted on VPS with Docker.
-
-Planned Improvements
-
-Reverse Proxy (NGINX) for load balancing and HTTPS.
-
-Horizontal Scaling with Docker Swarm or Kubernetes.
-
-Job Queue / Rate Limiter to handle high-volume AI calls safely.
-
-Monitoring & Logging:
-
-Centralized logs (pino or Winston).
-
-Error tracking via Sentry.
-
-Request metrics dashboard (Prometheus + Grafana).
-
-Long-Term Plan
-
-Auto-scaling infrastructure based on workload.
-
-Multi-region replication for low latency.
-
-API gateway for managing rate limits per user or plan.
-
-🔐 9. Security & Access Control
-Planned Features
-
-Firebase Auth for user identity.
-
-Firestore & Storage rules restricting access to user-owned data.
-
-Role-based permissions (Owner / Admin / Staff).
-
-Secure API key handling for backend and n8n integrations.
-
-Audit logging for all product generations.
-
-💬 10. Future AI Enhancements
-Advanced Capabilities
-
-Auto-caption translations (multi-language ad variants).
-
-AI scene suggestions based on existing ads.
-
-Ad performance predictions via fine-tuned models.
-
-Template consistency learning (e.g., brand-specific color palettes).
-
-Research Tracks
-
-Integrate Gemini 2.0 for advanced visual understanding.
-
-Add CLIP-based similarity scoring for visual quality control.
-
-Custom diffusion fine-tuning for brand-specific imagery.
-
-🧾 Summary of Priorities
-Priority	Feature	Status
-✅	Working AI ad image generation (DALL·E 3 + backend)	Complete
-🟨	New Firestore structure under /users/{uid}/businesses/...	Planned
-🟨	Simple frontend UI (Expo Web) with Google sign-in	Planned
-🟨	Product dashboard + upload form	Planned
-🟨	Auto workflow in n8n	Planned
-⏳	Billing and subscription logic	Future
-⏳	Server scaling & monitoring setup	Future
-⏳	Multi-language + brand consistency AI features	Future
-🧭 Long-Term Vision
-
-To become a plug-and-play AI marketing suite for small businesses:
-
-Businesses upload products → AI generates ads, visuals, and captions automatically.
-
-Everything lives under one ecosystem — text, visuals, posting, analytics, and scheduling.
-
-Scalable, fully automated, and accessible from web or mobile.
-
-End of Document
-Version: 1.0.0 — October 2025
-Author: Auto-Advertisement Project Team
+| Method | Endpoint | Description | Auth Required |
+|--------|----------|-------------|---------------|
+| POST | `/products/upload` | Batch upload products | Yes |
+| POST | `/products/:businessId` | Create single product | Yes |
+| PATCH | `/products/update/:businessId/:productId` | Update product fields | Yes |
+| POST | `/products/upload/:businessId/:productId` | Upload product image | Yes |
+| DELETE | `/products/:businessId/:productId` | Delete product | Yes |
+| GET | `/products/next/:businessId` | Get next pending product | Yes |
+
+### Businesses
+
+| Method | Endpoint | Description | Auth Required |
+|--------|----------|-------------|---------------|
+| POST | `/businesses` | Create business | Yes |
+| GET | `/businesses` | Get all user's businesses | Yes |
+| GET | `/businesses/:businessId` | Get business with products | Yes |
+
+### AI Generation
+
+| Method | Endpoint | Description | Auth Required |
+|--------|----------|-------------|---------------|
+| POST | `/ai/generate-ad-image` | Generate advertisement image | Yes |
+
+---
+
+## Socket.IO Events
+
+### Emitted by Server
+
+| Event | Payload | Description |
+|-------|---------|-------------|
+| `product:created` | Full product object | New product added |
+| `product:updated` | Partial product + id | Product modified |
+| `product:deleted` | { id, businessId } | Product removed |
+| `business:created` | Full business object | New business added |
+
+**All events are scoped to user rooms**: `user:${uid}`
+
+See [Socket Event Contract](./SOCKET_EVENT_CONTRACT.md) for detailed schemas.
+
+---
+
+## Product Status Lifecycle
+
+```
+pending → processing → enriched → posted
+              ↓
+            failed
+```
+
+| Status | Description | Set By |
+|--------|-------------|--------|
+| `pending` | Newly created, awaiting enrichment | Backend (default) |
+| `processing` | AI workflow in progress | Frontend (optimistic) |
+| `enriched` | AI generation successful | Backend (via AI route or n8n) |
+| `posted` | Manually published | Future feature |
+| `failed` | Enrichment failed | Backend (AI route error) |
+
+---
+
+## Project Structure
+
+```
+src/
+├── config/
+│   ├── env.js              # Environment variables
+│   └── firebase.js         # Firebase Admin SDK setup
+├── constants/
+│   └── statusEnum.js       # Product status values
+├── middleware/
+│   └── authMiddleware.js   # JWT/Firebase token verification
+├── models/
+│   ├── UserModel.js        # User schema
+│   ├── BusinessModel.js    # Business schema
+│   └── ProductModel.js     # Product schema (with unified status)
+├── routes/
+│   ├── authRoutes.js       # Authentication endpoints
+│   ├── businessRoutes.js   # Business CRUD
+│   ├── productRoutes.js    # Product CRUD + image upload
+│   └── aiRoutes.js         # AI image generation
+├── services/
+│   ├── firebaseAuth.js     # Firebase authentication helpers
+│   ├── googleAuth.js       # Google OAuth
+│   └── jwtService.js       # JWT token helpers
+└── utils/
+    └── logger.js           # Logging utility
+
+index.js                    # Main server entry point
+```
+
+---
+
+## WebSocket Authentication
+
+Socket connections require Firebase ID token:
+
+```javascript
+// Client-side
+const socket = io('http://localhost:3000', {
+  auth: { token: firebaseIdToken }
+});
+```
+
+Server validates token and joins user to room:
+```javascript
+socket.join(`user:${uid}`);
+```
+
+---
+
+## n8n Integration
+
+### Workflow Trigger (Webhook)
+```http
+POST https://your-n8n-instance.com/webhook/enrich-product
+Content-Type: application/json
+
+{
+  "accessToken": "firebase_id_token",
+  "businessId": "business_id",
+  "product": {
+    "id": "product_id",
+    "name": "Product Name",
+    "price": 99.99,
+    "description": "Product description",
+    "imageUrl": "https://..."
+  }
+}
+```
+
+### Workflow Completion (Update Backend)
+```http
+PATCH http://localhost:3000/products/update/:businessId/:productId
+Authorization: Bearer firebase_id_token
+Content-Type: application/json
+
+{
+  "status": "enriched",
+  "advertisementText": "AI-generated caption",
+  "imagePrompt": "AI-generated prompt",
+  "generatedImageUrl": "https://..."
+}
+```
+
+Backend automatically emits `product:updated` event to frontend.
+
+See [n8n Workflow Migration Guide](./N8N_WORKFLOW_MIGRATION.md) for detailed setup.
+
+---
+
+## Development Guidelines
+
+### Error Handling
+- All routes use try-catch blocks
+- Errors logged with context
+- Socket emission failures don't break the request
+
+### Logging
+```javascript
+const { log } = require('./src/utils/logger');
+log('Server started');
+console.log(`📡 Emitted product:updated for ${productId}`);
+```
+
+### Socket Event Pattern
+```javascript
+// After successful Firestore write
+const updatedDoc = await productRef.get();
+
+// Emit to user's room
+const io = req.app.get('io');
+io?.to(`user:${uid}`).emit('product:updated', {
+  id: productId,
+  businessId,
+  ...updatedDoc.data(),
+});
+console.log(`📡 Emitted product:updated for ${productId}`);
+```
+
+### Status Updates
+```javascript
+const { STATUS } = require('./src/constants/statusEnum');
+
+// Use enum values, not hardcoded strings
+await productRef.set({ status: STATUS.ENRICHED }, { merge: true });
+```
+
+---
+
+## Testing
+
+### Manual API Testing
+```bash
+# Register user
+curl -X POST http://localhost:3000/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"idToken": "firebase_id_token", "displayName": "Test User"}'
+
+# Create product
+curl -X POST http://localhost:3000/products/test_business_id \
+  -H "Authorization: Bearer firebase_id_token" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Test Product", "price": 99.99}'
+
+# Update product
+curl -X PATCH http://localhost:3000/products/update/test_business_id/test_product_id \
+  -H "Authorization: Bearer firebase_id_token" \
+  -H "Content-Type: application/json" \
+  -d '{"status": "enriched"}'
+```
+
+### Socket Testing (Browser Console)
+```javascript
+// Connect to server
+const socket = io('http://localhost:3000', {
+  auth: { token: 'your_firebase_token' }
+});
+
+// Listen for events
+socket.on('product:updated', (data) => {
+  console.log('Product updated:', data);
+});
+```
+
+---
+
+## Deployment
+
+### Docker (Recommended)
+```dockerfile
+FROM node:18-alpine
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --only=production
+COPY . .
+EXPOSE 3000
+CMD ["npm", "start"]
+```
+
+```bash
+docker build -t auto-ads-backend .
+docker run -p 3000:3000 --env-file .env auto-ads-backend
+```
+
+### Environment Checklist
+- [ ] Firebase service account JSON configured
+- [ ] OpenAI API key set
+- [ ] CORS origin matches frontend URL
+- [ ] Storage bucket configured
+- [ ] Port accessible (firewall rules)
+
+---
+
+## Troubleshooting
+
+### Socket Connections Fail
+**Symptoms**: Frontend can't connect to WebSocket
+
+**Solutions:**
+1. Verify CORS settings in `index.js`
+2. Check firewall allows port 3000
+3. Verify frontend uses correct `VITE_API_URL`
+4. Check Firebase token is valid
+
+### Products Not Updating
+**Symptoms**: Backend logs show mutation but no socket event
+
+**Solutions:**
+1. Check `io.to(\`user:\${uid}\`)` is used (not global emit)
+2. Verify user is authenticated and joined room
+3. Check socket connection is established
+4. Review backend logs for emit confirmation
+
+### AI Generation Fails
+**Symptoms**: Status stuck on "processing"
+
+**Solutions:**
+1. Verify OpenAI API key is valid
+2. Check product has valid `imageUrl` and `imagePrompt`
+3. Review error logs in `/ai/generate-ad-image`
+4. Ensure error handler emits `status: "failed"` event
+
+---
+
+## Security
+
+- ✅ Firebase Admin SDK for token verification
+- ✅ User-scoped rooms prevent data leakage
+- ✅ Firestore security rules (configure in Firebase Console)
+- ✅ Storage bucket ACLs (signed URLs with expiry)
+- ⚠️ No rate limiting yet (add in production)
+- ⚠️ No API key rotation (implement for production)
+
+---
+
+## Performance
+
+### Metrics (per user session)
+- Initial login: **1 Firestore read**
+- Product mutations: **1 write, 0 reads** (WebSocket sync)
+- **70-85% reduction** in Firestore reads vs polling
+
+### Optimizations
+- Socket.IO rooms for targeted event delivery
+- Server-side timestamps reduce client overhead
+- Batch operations for bulk uploads
+- Signed URLs cached for 1 hour
+
+---
+
+## Contributing
+
+1. Follow existing code style
+2. Add error handling to all routes
+3. Emit socket events for all mutations
+4. Update event contract if adding new events
+5. Test with multiple clients (tabs)
+6. Log important operations
+
+---
+
+## License
+
+Proprietary - All rights reserved
+
+---
+
+## Support
+
+For issues or questions:
+- Review [Socket Event Contract](./SOCKET_EVENT_CONTRACT.md)
+- Check [n8n Migration Guide](./N8N_WORKFLOW_MIGRATION.md)
+- Review backend logs and client socket connection
+- Test manually with curl

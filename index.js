@@ -35,21 +35,39 @@ const io = new Server(server, {
   },
 });
 
-// (Optional but recommended) authenticate socket connection with Firebase token
+// Authenticate socket connection with Firebase token
 io.use(async (socket, next) => {
   try {
     const token = socket.handshake.auth?.token || socket.handshake.headers?.authorization?.replace("Bearer ", "");
-    if (!token) return next(); // Allow unauthenticated for now; tighten later
+    if (!token) {
+      console.warn("⚠️ Socket connection attempt without token");
+      return next(new Error("Authentication required"));
+    }
 
     const decoded = await admin.auth().verifyIdToken(token);
-    socket.user = { uid: decoded.uid }; // Attach user to the socket
+    socket.user = { uid: decoded.uid, email: decoded.email }; // Attach user to the socket
     next();
   } catch (e) {
+    console.error("❌ Socket authentication failed:", e.message);
     next(new Error("Unauthorized socket connection"));
   }
 });
 
-io.on("connection", (socket) => log(`🔌 Socket connected: ${socket.id}`));
+io.on("connection", (socket) => {
+  const uid = socket.user?.uid;
+  
+  if (uid) {
+    // Join user-specific room for targeted events
+    socket.join(`user:${uid}`);
+    log(`🔌 Socket connected: ${socket.id} → joined room user:${uid}`);
+  } else {
+    log(`🔌 Socket connected: ${socket.id} (unauthenticated)`);
+  }
+
+  socket.on("disconnect", () => {
+    log(`🔌 Socket disconnected: ${socket.id}`);
+  });
+});
 
 // -------------------------------------
 // Middleware

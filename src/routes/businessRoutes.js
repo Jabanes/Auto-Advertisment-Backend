@@ -39,6 +39,15 @@ router.post("/", verifyAccessToken, async (req, res) => {
       .doc(businessId)
       .set(businessData);
 
+    // 🔔 Emit business:created event to user's room
+    try {
+      const io = req.app.get("io");
+      io?.to(`user:${uid}`).emit("business:created", businessData);
+      console.log(`📡 Emitted business:created for ${businessId}`);
+    } catch (err) {
+      console.warn("⚠️ Failed to emit socket event:", err.message);
+    }
+
     res.json({ success: true, business: businessData });
   } catch (err) {
     console.error("❌ Error creating business:", err);
