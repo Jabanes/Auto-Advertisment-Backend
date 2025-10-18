@@ -155,7 +155,7 @@ router.get("/next/:businessId", verifyAccessToken, async (req, res) => {
       .collection("businesses")
       .doc(businessId)
       .collection("products")
-      .where("status", "==", "pending")
+      .where("status", "==", STATUS.PENDING)
       .limit(1)
       .get();
 
@@ -182,6 +182,10 @@ router.patch("/update/:businessId/:productId", verifyAccessToken, async (req, re
 
     if (!updates || Object.keys(updates).length === 0) {
       return res.status(400).json({ success: false, error: "No update fields provided" });
+    }
+
+    if (updates.status) {
+      console.log(`[Product] ${productId} → status set to ${updates.status}`);
     }
 
     const productRef = db

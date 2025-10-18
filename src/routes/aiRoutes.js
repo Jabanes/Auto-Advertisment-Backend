@@ -27,21 +27,19 @@ const os = require("os");
 const { STATUS } = require("../constants/statusEnum");
 
 router.post("/generate-ad-image", verifyAccessToken, async (req, res) => {
-  try {
-    const { businessId, productId } = req.body;
-    const uid = req.user.uid;
+  const { businessId, productId } = req.body;
+  const uid = req.user.uid;
 
-    if (!businessId || !productId) {
+  // Define productRef here to make it available in the catch block
+  const productRef =
+    businessId && productId && uid
+      ? db.collection("users").doc(uid).collection("businesses").doc(businessId).collection("products").doc(productId)
+      : null;
+
+  try {
+    if (!productRef) {
       return res.status(400).json({ success: false, error: "Missing businessId or productId" });
     }
-
-    const productRef = db
-      .collection("users")
-      .doc(uid)
-      .collection("businesses")
-      .doc(businessId)
-      .collection("products")
-      .doc(productId);
 
     const productDoc = await productRef.get();
     if (!productDoc.exists)
@@ -120,6 +118,7 @@ router.post("/generate-ad-image", verifyAccessToken, async (req, res) => {
       { merge: true }
     );
 
+    console.log(`[Product] ${productId} → status set to ${STATUS.ENRICHED}`);
     res.json({
       success: true,
       message: `Generated advertisement image for ${productId}`,
@@ -133,7 +132,21 @@ router.post("/generate-ad-image", verifyAccessToken, async (req, res) => {
     //   await productRef.set({ status: "posted", postDate: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
     // ----------------------------------------------------
   } catch (err) {
-    console.error("❌ Error generating ad image:", err);
+    console.error(`❌ Error generating ad image for product ${productId}:`, err);
+
+    // If an error occurs, update the product status to FAILED
+    if (productRef) {
+      await productRef.set(
+        {
+          status: STATUS.FAILED,
+          errorMessage: err.message || "AI generation failed",
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+      console.log(`[Product] ${productId} → status set to ${STATUS.FAILED}`);
+    }
+
     res.status(500).json({ success: false, error: "Internal server error" });
   }
 });

@@ -12,9 +12,11 @@
  */
 
 const STATUS = Object.freeze({
-  PENDING: "pending",   // Waiting for enrichment (default after creation)
-  ENRICHED: "enriched", // AI-generated image + text ready to post
-  POSTED: "posted",     // Successfully posted/published
+  PENDING: "pending", // newly created or waiting enrichment
+  PROCESSING: "processing", // enrichment (AI) started
+  ENRICHED: "enriched", // enrichment completed successfully
+  POSTED: "posted", // manually published
+  FAILED: "failed", // enrichment or generation failed
 });
 
 module.exports = { STATUS };
