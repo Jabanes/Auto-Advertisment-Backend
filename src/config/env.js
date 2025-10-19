@@ -2,7 +2,7 @@ require("dotenv").config({ quiet: true });
 
 const {
   PORT = 3000,
-  FRONTEND_URL = "http://localhost:8081",
+  FRONTEND_URLS = "http://localhost:8081",
   JWT_SECRET = "super_secret_key",
   ACCESS_TOKEN_EXPIRES_IN = "1h",
   REFRESH_TOKEN_EXPIRES_IN = "7d",
@@ -20,9 +20,11 @@ if (!FIREBASE_API_KEY) {
   console.warn("⚠️  FIREBASE_API_KEY is missing. /auth/login (email+password) won't work.");
 }
 
+const allowedOrigins = FRONTEND_URLS.split(",").map((url) => url.trim());
+
 module.exports = {
   PORT,
-  FRONTEND_URL,
+  FRONTEND_URLS: allowedOrigins.length === 1 ? allowedOrigins[0] : allowedOrigins,
   JWT_SECRET,
   ACCESS_TOKEN_EXPIRES_IN,
   REFRESH_TOKEN_EXPIRES_IN,

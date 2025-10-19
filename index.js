@@ -11,7 +11,7 @@ const cors = require("cors");
 const bodyParser = require("body-parser");
 const { Server } = require("socket.io");
 
-const { PORT, FRONTEND_URL, ACCESS_TOKEN_EXPIRES_IN, REFRESH_TOKEN_EXPIRES_IN, FIREBASE_STORAGE_BUCKET } = require("./src/config/env");
+const { PORT, FRONTEND_URLS, ACCESS_TOKEN_EXPIRES_IN, REFRESH_TOKEN_EXPIRES_IN, FIREBASE_STORAGE_BUCKET } = require("./src/config/env");
 const { admin, serviceAccount } = require("./src/config/firebase");
 const { log } = require("./src/utils/logger");
 
@@ -30,7 +30,7 @@ const server = http.createServer(app);
 // -------------------------------------
 const io = new Server(server, {
   cors: {
-    origin: FRONTEND_URL,
+    origin: FRONTEND_URLS,
     credentials: true,
   },
 });
@@ -74,7 +74,7 @@ io.on("connection", (socket) => {
 // -------------------------------------
 app.use(
   cors({
-    origin: FRONTEND_URL,
+    origin: FRONTEND_URLS,
     credentials: true,
   })
 );
@@ -115,7 +115,7 @@ app.use((err, req, res, next) => {
 server.listen(PORT, () => {
   log("==================================================");
   log(`🚀 Server running on http://localhost:${PORT}`);
-  log(`🌍 CORS origin: ${FRONTEND_URL}`);
+  log(`🌍 CORS origins: ${Array.isArray(FRONTEND_URLS) ? FRONTEND_URLS.join(", ") : FRONTEND_URLS}`);
   log(`🔐 JWT: access=${ACCESS_TOKEN_EXPIRES_IN} refresh=${REFRESH_TOKEN_EXPIRES_IN}`);
   log(`🔥 Firebase project: ${serviceAccount.project_id || "(from service account)"}`);
   log(`🗄️  Storage bucket: ${FIREBASE_STORAGE_BUCKET || "(not set)"}`);

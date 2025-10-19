@@ -46,7 +46,8 @@ Create `.env` file:
 
 ```env
 PORT=3000
-FRONTEND_URL=http://localhost:5173
+# Comma-separated list of allowed frontend URLs for CORS
+FRONTEND_URLS=http://localhost:5173,https://your-deployed-app.com
 
 # Firebase Admin SDK
 FIREBASE_SERVICE_ACCOUNT_PATH=./serviceAccountKey.json
