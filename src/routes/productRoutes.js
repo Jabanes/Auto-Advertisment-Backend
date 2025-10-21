@@ -17,6 +17,69 @@ const { createBusiness } = require("../models/BusinessModel");
 const { STATUS } = require("../constants/statusEnum");
 
 // ------------------------------------------------------------------
+// GET ALL PRODUCTS (across all businesses or for a specific business)
+// ------------------------------------------------------------------
+router.get("/", verifyAccessToken, async (req, res) => {
+  try {
+    const uid = req.user.uid;
+    const { businessId } = req.query; // Optional: filter by businessId
+
+    console.log(`[Products] Fetching products for user ${uid}${businessId ? ` (business: ${businessId})` : ''}`);
+
+    let products = [];
+
+    if (businessId) {
+      // Fetch products for a specific business
+      const productsSnap = await db
+        .collection("users")
+        .doc(uid)
+        .collection("businesses")
+        .doc(businessId)
+        .collection("products")
+        .get();
+
+      products = productsSnap.docs.map(doc => ({
+        id: doc.id,
+        businessId,
+        ...doc.data(),
+      }));
+    } else {
+      // Fetch products across all businesses
+      const businessesSnap = await db
+        .collection("users")
+        .doc(uid)
+        .collection("businesses")
+        .get();
+
+      for (const businessDoc of businessesSnap.docs) {
+        const productsSnap = await db
+          .collection("users")
+          .doc(uid)
+          .collection("businesses")
+          .doc(businessDoc.id)
+          .collection("products")
+          .get();
+
+        const businessProducts = productsSnap.docs.map(pDoc => ({
+          id: pDoc.id,
+          businessId: businessDoc.id,
+          ...pDoc.data(),
+        }));
+
+        products = products.concat(businessProducts);
+      }
+    }
+
+    console.log(`[Products] Found ${products.length} products`);
+
+    res.json({ success: true, products });
+  } catch (err) {
+    console.error("❌ Error fetching products:", err);
+    res.status(500).json({ success: false, error: "Internal server error" });
+  }
+});
+
+// ------------------------------------------------------------------
 // Upload single image to Firebase Storage — replaces old ones
 // ------------------------------------------------------------------
 const multer = require("multer");

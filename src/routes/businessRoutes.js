@@ -26,7 +26,15 @@ router.get("/", verifyAccessToken, async (req, res) => {
       return res.json({ success: true, businesses: [] });
     }
 
-    const businesses = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    // Map docs and ensure businessId is set (already in data, but verify consistency)
+    const businesses = snapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        ...data,
+        businessId: data.businessId || doc.id, // Ensure businessId exists
+      };
+    });
+    
     res.json({ success: true, businesses });
   } catch (err) {
     console.error("❌ Error fetching businesses:", err);
@@ -49,7 +57,13 @@ router.get("/:businessId", verifyAccessToken, async (req, res) => {
       return res.status(404).json({ success: false, error: "Business not found" });
     }
 
-    res.json({ success: true, business: { id: doc.id, ...doc.data() } });
+    const data = doc.data();
+    const business = {
+      ...data,
+      businessId: data.businessId || doc.id, // Ensure businessId exists
+    };
+
+    res.json({ success: true, business });
   } catch (err) {
     console.error("❌ Error fetching business:", err);
     res.status(500).json({ success: false, error: "Internal server error" });
@@ -62,31 +76,34 @@ router.get("/:businessId", verifyAccessToken, async (req, res) => {
 router.post("/", verifyAccessToken, async (req, res) => {
   try {
     const uid = req.user.uid;
-    const { name, description } = req.body;
+    const businessData = req.body;
 
-    if (!name) {
+    if (!businessData.name) {
       return res.status(400).json({ success: false, error: "Business name is required" });
     }
 
     const businessesRef = db.collection("users").doc(uid).collection("businesses");
     const newBusinessRef = businessesRef.doc(); // Auto-generate ID
 
+    // Create business with all fields from request body
     const newBusiness = createBusiness({
       businessId: newBusinessRef.id,
-      name,
-      description,
+      ...businessData, // Spread all fields from request
     });
 
     await newBusinessRef.set(newBusiness);
 
     const createdDoc = await newBusinessRef.get();
-    const createdBusiness = { id: createdDoc.id, ...createdDoc.data() };
+    const createdBusiness = {
+      ...createdDoc.data(),
+      businessId: newBusinessRef.id, // Ensure businessId is present
+    };
 
     // 🔔 Emit socket event
     try {
       const io = req.app.get("io");
       io?.to(`user:${uid}`).emit("business:created", createdBusiness);
-      console.log(`📡 Emitted business:created for ${createdBusiness.id}`);
+      console.log(`📡 Emitted business:created for ${createdBusiness.businessId}`);
     } catch (err) {
       console.warn("⚠️ Failed to emit socket event:", err.message);
     }
@@ -119,13 +136,17 @@ router.patch("/:businessId", verifyAccessToken, async (req, res) => {
     });
 
     const updatedDoc = await businessRef.get();
-    const updatedBusiness = { id: updatedDoc.id, ...updatedDoc.data() };
+    const data = updatedDoc.data();
+    const updatedBusiness = {
+      ...data,
+      businessId: data.businessId || updatedDoc.id, // Ensure businessId exists
+    };
 
     // 🔔 Emit socket event
     try {
       const io = req.app.get("io");
       io?.to(`user:${uid}`).emit("business:updated", updatedBusiness);
-      console.log(`📡 Emitted business:updated for ${updatedBusiness.id}`);
+      console.log(`📡 Emitted business:updated for ${updatedBusiness.businessId}`);
     } catch (err) {
       console.warn("⚠️ Failed to emit socket event:", err.message);
     }
@@ -152,7 +173,8 @@ router.delete("/:businessId", verifyAccessToken, async (req, res) => {
     // 🔔 Emit socket event
     try {
       const io = req.app.get("io");
-      io?.to(`user:${uid}`).emit("business:deleted", { id: businessId });
+      // Frontend expects { businessId } not { id }
+      io?.to(`user:${uid}`).emit("business:deleted", { businessId });
       console.log(`📡 Emitted business:deleted for ${businessId}`);
     } catch (err) {
       console.warn("⚠️ Failed to emit socket event:", err.message);

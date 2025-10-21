@@ -76,8 +76,12 @@ app.use(
   cors({
     origin: FRONTEND_URLS,
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
   })
 );
+
+
 app.use(bodyParser.json());
 
 // Make io available in routes via req.app.get('io')

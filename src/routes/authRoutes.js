@@ -153,7 +153,8 @@ router.post("/register", async (req, res) => {
       message: "Registration successful",
       uid,
       email,
-      idToken, // Return the same Firebase token (client already has it)
+      serverToken: idToken, // Frontend expects 'serverToken'
+      idToken, // Keep for backward compatibility
       ...fullData,
     });
   } catch (err) {
@@ -190,6 +191,64 @@ router.get("/me", verifyAccessToken, async (req, res) => {
     });
   } catch (err) {
     console.error("❌ Failed to fetch user data:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// -------------------------------------------------------------------
+// 📧 EMAIL/PASSWORD LOGIN
+// For clients using Firebase email/password auth
+// Client should authenticate with Firebase Client SDK first, then send ID token
+// -------------------------------------------------------------------
+router.post("/login", async (req, res) => {
+  try {
+    console.log("[Auth] POST /auth/login");
+    const { idToken, email, password } = req.body;
+
+    // If idToken is provided, verify it (standard flow)
+    if (idToken) {
+      const decoded = await admin.auth().verifyIdToken(idToken);
+      const uid = decoded.uid;
+      const userEmail = decoded.email;
+
+      console.log(`[Auth] Email login via ID token: ${userEmail} (${uid})`);
+
+      // Update last login
+      const userRef = db.collection("users").doc(uid);
+      await userRef.update({
+        lastLoginAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      // Fetch full user data
+      const fullData = await fetchUserFullData(uid);
+
+      console.log(`[Auth] ✅ Email login successful`);
+
+      return res.json({
+        success: true,
+        message: "Login successful",
+        uid,
+        email: userEmail,
+        serverToken: idToken,
+        idToken,
+        ...fullData,
+      });
+    }
+
+    // Legacy support: If email/password provided (not recommended for production)
+    if (email && password) {
+      return res.status(400).json({
+        success: false,
+        error: "Direct email/password login not supported. Please use Firebase Client SDK to authenticate first, then send the ID token.",
+      });
+    }
+
+    return res.status(400).json({
+      success: false,
+      error: "Either 'idToken' or 'email' and 'password' required",
+    });
+  } catch (err) {
+    console.error("❌ Email login failed:", err);
     res.status(500).json({ success: false, error: err.message });
   }
 });
@@ -274,7 +333,8 @@ router.post("/google", async (req, res) => {
       message: "Google Sign-In successful",
       uid,
       email,
-      idToken, // Return the same Firebase token
+      serverToken: idToken, // Frontend expects 'serverToken'
+      idToken, // Keep for backward compatibility
       ...fullData,
     });
   } catch (err) {
