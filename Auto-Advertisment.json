@@ -1,0 +1,246 @@
+{
+  "name": "Auto-Advertisement v2",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "auto-enrich",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "6c7ab8cd-8ba4-4ee2-bdeb-bf34bf635405",
+      "name": "Webhook /auto-enrich",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        464
+      ],
+      "webhookId": "c8ab12f0-ffc5-428c-b446-eb8c58516261"
+    },
+    {
+      "parameters": {
+        "url": "={{`https://ads.srv1040889.hstgr.cloud/next-product/${$json.body.businessId}`}}",
+        "options": {}
+      },
+      "id": "4b1f71ad-1b3b-4ec9-80c0-20ca486fccd7",
+      "name": "HTTP → Get Pending Product",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1408,
+        464
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "enrich-product",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "4ef9dc3d-9a3e-4c94-add8-21f79b34615f",
+      "name": "Webhook /enrich-product",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        1408,
+        272
+      ],
+      "webhookId": "73fce29e-282e-4527-92d1-b477563f8f72"
+    },
+    {
+      "parameters": {
+        "resource": "chat",
+        "model": "gpt-4o",
+        "prompt": {
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are a professional marketing copywriter and AI prompt engineer.\n\nFor every product JSON you receive, output one JSON object with exactly two fields:\n1. \"advertisementText\" – short persuasive Hebrew ad caption written as if the business owner invites customers. Include price if available, end with call-to-action, no emojis or slang.\n2. \"imagePrompt\" – descriptive English prompt for an AI image generator. Mention the product image URL and describe a professional advertisement scene (lighting, composition, background, etc.).\n\nOutput must be a single valid JSON object, no markdown or explanations."
+            },
+            {
+              "content": "=={{JSON.stringify($json, null, 2)}}\n"
+            }
+          ]
+        },
+        "options": {},
+        "requestOptions": {}
+      },
+      "id": "59ce0427-5576-44ee-a078-4fb80a3f49d1",
+      "name": "OpenAI → Generate Caption & Prompt",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [
+        1856,
+        400
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "s04FTiyGh7Ah1MGW",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🧠 Parse OpenAI response safely and reattach identifiers\nreturn $input.all().map(item => {\n  const raw = item.json?.message?.content ?? '';\n  let parsed = {};\n\n  // --- Try parsing OpenAI JSON ---\n  try {\n    parsed = JSON.parse(raw);\n  } catch (e) {\n    try {\n      const clean = raw\n        .replace(/```json|```/g, '') // strip code fences\n        .replace(/(\\r\\n|\\n|\\r)/gm, ' ')\n        .replace(/\\s+/g, ' ')\n        .trim();\n      parsed = JSON.parse(clean);\n    } catch {\n      parsed = { advertisementText: raw, imagePrompt: '' };\n    }\n  }\n\n  const strip = s =>\n    typeof s === 'string' ? s.replace(/[\\r\\n]+/g, ' ').trim() : '';\n\n  // ✅ Pull metadata from the original webhook node instead of current item\n  const webhookData = $('Webhook /enrich-product').first().json.body || {};\n\n  const businessId =\n    webhookData.businessId ||\n    item.json.businessId ||\n    item.json.body?.businessId ||\n    null;\n\n  const productId =\n    webhookData.product?.id ||\n    webhookData.productId ||\n    item.json.productId ||\n    item.json.body?.productId ||\n    null;\n\n  const accessToken =\n    webhookData.accessToken ||\n    item.json.accessToken ||\n    item.json.body?.accessToken ||\n    null;\n\n  return {\n    json: {\n      businessId,\n      productId,\n      accessToken,\n      advertisementText: strip(parsed.advertisementText || ''),\n      imagePrompt: strip(parsed.imagePrompt || ''),\n    },\n  };\n});\n"
+      },
+      "id": "6262e851-766b-4249-8167-7b7279feccec",
+      "name": "Code → Parse OpenAI JSON",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2064,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://ads.srv1040889.hstgr.cloud/products/update/{{ $json.businessId }}/{{ $json.productId }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "=Authorization",
+              "value": "=Bearer {{ $('Webhook /enrich-product').item.json.body.accessToken }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { advertisementText: $json.advertisementText, imagePrompt: $json.imagePrompt } }}",
+        "options": {}
+      },
+      "id": "bbf4e7dd-59c8-4833-bf9a-3771557a6743",
+      "name": "HTTP → Update Product",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2256,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://ads.srv1040889.hstgr.cloud/ai/generate-ad-image",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $('Webhook /enrich-product').item.json.body.accessToken }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n    \"businessId\": \"{{ $json.product.businessId }}\",\n    \"productId\": \"{{ $json.product.id }}\"\n  }",
+        "options": {}
+      },
+      "id": "414ae63d-1f82-4b9d-9383-aab2d0e4823a",
+      "name": "HTTP → Generate Ad Image",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2432,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "7e7b7b78-dffd-441f-8324-558284e26fe4",
+      "name": "Webhook Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        2624,
+        400
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook /enrich-product": {
+      "main": [
+        [
+          {
+            "node": "OpenAI → Generate Caption & Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP → Get Pending Product": {
+      "main": [
+        [
+          {
+            "node": "OpenAI → Generate Caption & Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI → Generate Caption & Prompt": {
+      "main": [
+        [
+          {
+            "node": "Code → Parse OpenAI JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code → Parse OpenAI JSON": {
+      "main": [
+        [
+          {
+            "node": "HTTP → Update Product",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP → Update Product": {
+      "main": [
+        [
+          {
+            "node": "HTTP → Generate Ad Image",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP → Generate Ad Image": {
+      "main": [
+        [
+          {
+            "node": "Webhook Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "ed3b4d7e-5c8d-4df8-81ef-020aa81bfa3b",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "2d26db11a1e0b40eab8bf56afc51e576ff38f35c52ec52a2996c87ceadcc462a"
+  },
+  "id": "CqPvaNG2PESfiIaI",
+  "tags": []
+}

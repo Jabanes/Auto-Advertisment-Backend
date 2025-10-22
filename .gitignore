@@ -1,0 +1,52 @@
+# Secrets & Sensitive Information
+# -------------------------------
+# IMPORTANT: Add any files containing secrets, API keys, or other sensitive information.
+# Never commit sensitive data to your repository.
+# Example:
+# secrets.yml
+# .env
+# credentials.json
+
+
+# Local Environment Configuration
+# -------------------------------
+.env
+.env.local
+.env.*.local
+
+
+# Dependencies
+# ------------
+/node_modules/
+/vendor/
+/bower_components/
+
+
+# Build Artifacts & Compiled Output
+# ---------------------------------
+/build/
+/dist/
+/out/
+/target/
+*.class
+*.o
+
+
+# Log Files
+# ---------
+*.log
+
+
+# IDE & Editor Configuration
+# --------------------------
+.idea/
+.vscode/
+*.swp
+
+
+# OS-generated Files
+# ------------------
+.DS_Store
+Thumbs.db
+
+serviceAccountKey.json
