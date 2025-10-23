@@ -40,33 +40,65 @@ io.use(async (socket, next) => {
   try {
     const token = socket.handshake.auth?.token || socket.handshake.headers?.authorization?.replace("Bearer ", "");
     if (!token) {
-      console.warn("⚠️ Socket connection attempt without token");
+      console.warn(`⚠️ [Socket] Connection attempt without token | Socket ID: ${socket.id}`);
       return next(new Error("Authentication required"));
     }
 
     const decoded = await admin.auth().verifyIdToken(token);
-    console.log(`[Socket Auth] ✅ Authenticated socket ${socket.id} for user ${decoded.uid}`);
+    console.log(
+      `✅ [Socket Auth] Authenticated successfully | Socket ID: ${socket.id} | ` +
+      `User: ${decoded.uid} | Email: ${decoded.email || 'unknown'}`
+    );
     socket.user = { uid: decoded.uid, email: decoded.email }; // Attach user to the socket
     next();
   } catch (e) {
-    console.error(`❌ Socket authentication failed for socket ${socket.id}:`, e.message);
+    console.error(
+      `❌ [Socket Auth] Authentication failed | Socket ID: ${socket.id} | ` +
+      `Error: ${e.message}`
+    );
     next(new Error("Unauthorized socket connection"));
   }
 });
 
 io.on("connection", (socket) => {
   const uid = socket.user?.uid;
+  const email = socket.user?.email;
   
   if (uid) {
     // Join user-specific room for targeted events
     socket.join(`user:${uid}`);
-    log(`🔌 Socket connected: ${socket.id} → joined room user:${uid}`);
+    console.log(
+      `🟢 [Socket] Client connected | Socket ID: ${socket.id} | ` +
+      `User: ${uid} | Email: ${email || 'unknown'} | ` +
+      `Room: user:${uid}`
+    );
+    
+    // Log current room members count
+    const roomSize = io.sockets.adapter.rooms.get(`user:${uid}`)?.size || 0;
+    console.log(`  └─ Room 'user:${uid}' now has ${roomSize} connected client(s)`);
   } else {
-    log(`🔌 Socket connected: ${socket.id} (unauthenticated)`);
+    console.log(`🟡 [Socket] Client connected (unauthenticated) | Socket ID: ${socket.id}`);
   }
 
-  socket.on("disconnect", () => {
-    log(`🔌 Socket disconnected: ${socket.id}${uid ? ` from room user:${uid}` : ''}`);
+  socket.on("disconnect", (reason) => {
+    console.log(
+      `🔴 [Socket] Client disconnected | Socket ID: ${socket.id} | ` +
+      `User: ${uid || 'unknown'} | Reason: ${reason}`
+    );
+    
+    if (uid) {
+      // Log remaining connections in the room
+      const roomSize = io.sockets.adapter.rooms.get(`user:${uid}`)?.size || 0;
+      console.log(`  └─ Room 'user:${uid}' now has ${roomSize} connected client(s)`);
+    }
+  });
+
+  // Log any socket errors
+  socket.on("error", (error) => {
+    console.error(
+      `❌ [Socket] Error on socket ${socket.id} | ` +
+      `User: ${uid || 'unknown'} | Error: ${error.message}`
+    );
   });
 });
 

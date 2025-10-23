@@ -25,6 +25,7 @@ const fs = require("fs");
 const path = require("path");
 const os = require("os");
 const { STATUS } = require("../constants/statusEnum");
+const { emitProductUpdate } = require("../utils/socketEmitter");
 
 router.post("/generate-ad-image", verifyAccessToken, async (req, res) => {
   const { businessId, productId } = req.body;
@@ -109,6 +110,8 @@ router.post("/generate-ad-image", verifyAccessToken, async (req, res) => {
     // ----------------------------------------------------
     // Step 4: Update Firestore (status → "enriched")
     // ----------------------------------------------------
+    console.log(`[AI] Updating product ${productId} in Firestore with generated image and status=${STATUS.ENRICHED}`);
+    
     await productRef.set(
       {
         generatedImageUrl: publicUrl,
@@ -118,23 +121,22 @@ router.post("/generate-ad-image", verifyAccessToken, async (req, res) => {
       { merge: true }
     );
 
+    console.log(
+      `✅ [AI] Firestore update committed for ${productId} | ` +
+      `Status: processing → ${STATUS.ENRICHED} | ImageURL: ${publicUrl.substring(0, 50)}...`
+    );
+
     // Fetch updated product for socket event
     const updatedDoc = await productRef.get();
+    const updatedProduct = {
+      id: productId,
+      businessId,
+      ...updatedDoc.data(),
+    };
 
-    // 🔔 Emit product:updated event to user's room
-    try {
-      const io = req.app.get("io");
-      io?.to(`user:${uid}`).emit("product:updated", {
-        id: productId,
-        businessId,
-        ...updatedDoc.data(),
-      });
-      console.log(`📡 Emitted product:updated for ${productId} (status: ${STATUS.ENRICHED})`);
-    } catch (err) {
-      console.warn("⚠️ Failed to emit socket event:", err.message);
-    }
-
-    console.log(`[Product] ${productId} → status set to ${STATUS.ENRICHED}`);
+    // 🔔 Emit product:updated event to user's room using centralized emitter
+    const io = req.app.get("io");
+    emitProductUpdate(io, uid, updatedProduct);
     res.json({
       success: true,
       message: `Generated advertisement image for ${productId}`,
@@ -148,39 +150,42 @@ router.post("/generate-ad-image", verifyAccessToken, async (req, res) => {
     //   await productRef.set({ status: "posted", postDate: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
     // ----------------------------------------------------
   } catch (err) {
-    console.error(`❌ Error generating ad image for product ${productId}:`, err);
+    console.error(`❌ [AI] Error generating ad image for product ${productId}:`, err.message);
+    console.error(`  └─ Stack trace:`, err.stack);
 
     // If an error occurs, update the product status to FAILED
     if (productRef) {
+      console.log(`[AI] Updating product ${productId} status to FAILED due to error`);
+      
       await productRef.set(
         {
           status: STATUS.FAILED,
           errorMessage: err.message || "AI generation failed",
+          failedAt: admin.firestore.FieldValue.serverTimestamp(),
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         },
         { merge: true }
       );
 
+      console.log(
+        `✅ [AI] Firestore update committed for ${productId} | ` +
+        `Status: processing → ${STATUS.FAILED} | Error: ${err.message}`
+      );
+
       // Fetch updated product for socket event
       const failedDoc = await productRef.get();
+      const failedProduct = {
+        id: productId,
+        businessId,
+        ...failedDoc.data(),
+      };
 
-      // 🔔 Emit product:updated event with failed status
-      try {
-        const io = req.app.get("io");
-        io?.to(`user:${uid}`).emit("product:updated", {
-          id: productId,
-          businessId,
-          ...failedDoc.data(),
-        });
-        console.log(`📡 Emitted product:updated for ${productId} (status: ${STATUS.FAILED})`);
-      } catch (_) {
-        console.warn("⚠️ Failed to emit socket event");
-      }
-
-      console.log(`[Product] ${productId} → status set to ${STATUS.FAILED}`);
+      // 🔔 Emit product:updated event with failed status using centralized emitter
+      const io = req.app.get("io");
+      emitProductUpdate(io, uid, failedProduct);
     }
 
-    res.status(500).json({ success: false, error: "Internal server error" });
+    res.status(500).json({ success: false, error: "Internal server error", details: err.message });
   }
 });
 

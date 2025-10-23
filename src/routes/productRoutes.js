@@ -15,6 +15,7 @@ const { verifyAccessToken } = require("../middleware/authMiddleware");
 const { createProduct } = require("../models/ProductModel");
 const { createBusiness } = require("../models/BusinessModel");
 const { STATUS } = require("../constants/statusEnum");
+const { emitProductUpdate, emitProductCreate, emitProductDelete } = require("../utils/socketEmitter");
 
 // ------------------------------------------------------------------
 // GET ALL PRODUCTS (across all businesses or for a specific business)
@@ -144,18 +145,12 @@ router.post(
       const updatedDoc = await productRef.get();
 
       // 🔔 Emit socket event to user's room
-      try {
-        const io = req.app.get("io");
-        console.log(`[Socket] Emitting 'product:updated' to room 'user:${uid}' for product ${productId} (image upload)`);
-        io?.to(`user:${uid}`).emit("product:updated", {
-          id: productId,
-          businessId,
-          ...updatedDoc.data(),
-        });
-        console.log(`📡 Emitted product:updated for ${productId} (image upload)`);
-      } catch (_) {
-        console.warn("⚠️ Failed to emit socket event");
-      }
+      const io = req.app.get("io");
+      emitProductUpdate(io, uid, {
+        id: productId,
+        businessId,
+        ...updatedDoc.data(),
+      });
 
       res.json({ success: true, url });
     } catch (err) {
@@ -269,8 +264,9 @@ router.patch("/update/:businessId/:productId", verifyAccessToken, async (req, re
       return res.status(400).json({ success: false, error: "No update fields provided" });
     }
 
+    // Log status changes for debugging
     if (updates.status) {
-      console.log(`[Product] ${productId} → status set to ${updates.status}`);
+      console.log(`[Product] ${productId} → status changing to "${updates.status}"`);
     }
 
     const productRef = db
@@ -281,6 +277,15 @@ router.patch("/update/:businessId/:productId", verifyAccessToken, async (req, re
       .collection("products")
       .doc(productId);
 
+    // Check if product exists before update
+    const existingDoc = await productRef.get();
+    if (!existingDoc.exists) {
+      console.warn(`⚠️ [Product] Attempted to update non-existent product ${productId}`);
+      return res.status(404).json({ success: false, error: "Product not found" });
+    }
+
+    const oldStatus = existingDoc.data()?.status;
+
     // Merge only provided fields
     await productRef.set(
       {
@@ -290,21 +295,22 @@ router.patch("/update/:businessId/:productId", verifyAccessToken, async (req, re
       { merge: true }
     );
 
-    const updatedDoc = await productRef.get();
+    console.log(
+      `✅ [Product] Firestore update committed for ${productId} | ` +
+      `Status: ${oldStatus || 'unknown'} → ${updates.status || oldStatus || 'unchanged'}`
+    );
 
-    // 🔔 Emit to user's room only
-    try {
-      const io = req.app.get("io");
-      console.log(`[Socket] Emitting 'product:updated' to room 'user:${uid}' for product ${productId}`);
-      io?.to(`user:${uid}`).emit("product:updated", {
-        id: productId,
-        businessId,
-        ...updatedDoc.data(),
-      });
-      console.log(`📡 Emitted product:updated for ${productId}`);
-    } catch (err) {
-      console.warn("⚠️ Failed to emit socket event:", err.message);
-    }
+    // Fetch updated product for socket event
+    const updatedDoc = await productRef.get();
+    const updatedProduct = {
+      id: productId,
+      businessId,
+      ...updatedDoc.data(),
+    };
+
+    // 🔔 Emit to user's room using centralized emitter
+    const io = req.app.get("io");
+    emitProductUpdate(io, uid, updatedProduct);
 
     res.json({
       success: true,
@@ -357,15 +363,11 @@ router.post("/:businessId", verifyAccessToken, async (req, res) => {
     const saved = await productRef.get();
     const createdProduct = { id: productId, ...saved.data() };
 
+    console.log(`✅ [Product] Created new product ${productId} | Name="${product.name}" | Business=${businessId}`);
+
     // 🔔 Emit product:created event to user's room
-    try {
-      const io = req.app.get("io");
-      console.log(`[Socket] Emitting 'product:created' to room 'user:${uid}' for product ${createdProduct.id}`);
-      io?.to(`user:${uid}`).emit("product:created", createdProduct);
-      console.log(`📡 Emitted product:created for ${productId}`);
-    } catch (err) {
-      console.warn("⚠️ Failed to emit socket event:", err.message);
-    }
+    const io = req.app.get("io");
+    emitProductCreate(io, uid, createdProduct);
 
     res.json({
       success: true,
@@ -399,6 +401,7 @@ router.delete("/:businessId/:productId", verifyAccessToken, async (req, res) => 
 
     // 🧹 1️⃣ Delete the Firestore document
     await productRef.delete();
+    console.log(`✅ [Product] Deleted from Firestore: ${productId}`);
 
     // 🧹 2️⃣ Delete the folder from Firebase Storage
     const storage = getStorage();
@@ -409,19 +412,11 @@ router.delete("/:businessId/:productId", verifyAccessToken, async (req, res) => 
     for (const file of files) {
       await file.delete().catch(() => null);
     }
+    console.log(`  └─ Deleted ${files.length} file(s) from Storage`);
 
     // 🔔 Emit product:deleted event to user's room
-    try {
-      const io = req.app.get("io");
-      console.log(`[Socket] Emitting 'product:deleted' to room 'user:${uid}' for product ${productId}`);
-      io?.to(`user:${uid}`).emit("product:deleted", {
-        id: productId,
-        businessId,
-      });
-      console.log(`📡 Emitted product:deleted for ${productId}`);
-    } catch (err) {
-      console.warn("⚠️ Failed to emit socket event:", err.message);
-    }
+    const io = req.app.get("io");
+    emitProductDelete(io, uid, productId, businessId);
 
     res.json({
       success: true,
