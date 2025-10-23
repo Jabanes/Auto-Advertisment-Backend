@@ -31,16 +31,19 @@ jobs:
             # Navigate to backend directory on the server
             cd /root/backend/Auto-Advertisment-Backend
 
-            # Pull latest changes from GitHub
-            git pull origin main
+            echo "🔄 Fetching latest changes..."
+            git fetch origin main
 
-            # Rebuild the Docker service for Auto-Advertisment
+            echo "🧹 Resetting local branch to match remote main..."
+            git reset --hard origin/main
+
+            echo "🐳 Rebuilding Docker service..."
             docker compose build auto-advertisment
 
-            # Restart the container with the new image
+            echo "♻️ Restarting container..."
             docker compose up -d auto-advertisment
 
-            # Clean up unused Docker images to free space
+            echo "🧼 Cleaning unused Docker images..."
             docker image prune -f
 
             echo "✅ Deployment complete and running in production"
