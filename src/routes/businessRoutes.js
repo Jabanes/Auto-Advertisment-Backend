@@ -107,6 +107,7 @@ router.post("/", verifyAccessToken, async (req, res) => {
     // 🔔 Emit socket event
     try {
       const io = req.app.get("io");
+      console.log(`[Socket] Emitting 'business:created' to room 'user:${uid}' for business ${createdBusiness.businessId}`);
       io?.to(`user:${uid}`).emit("business:created", createdBusiness);
       console.log(`📡 Emitted business:created for ${createdBusiness.businessId}`);
     } catch (err) {
@@ -153,6 +154,7 @@ router.patch("/:businessId", verifyAccessToken, async (req, res) => {
     // 🔔 Emit socket event
     try {
       const io = req.app.get("io");
+      console.log(`[Socket] Emitting 'business:updated' to room 'user:${uid}' for business ${updatedBusiness.businessId}`);
       io?.to(`user:${uid}`).emit("business:updated", updatedBusiness);
       console.log(`📡 Emitted business:updated for ${updatedBusiness.businessId}`);
     } catch (err) {
@@ -181,6 +183,7 @@ router.delete("/:businessId", verifyAccessToken, async (req, res) => {
     // 🔔 Emit socket event
     try {
       const io = req.app.get("io");
+      console.log(`[Socket] Emitting 'business:deleted' to room 'user:${uid}' for business ${businessId}`);
       // Frontend expects { businessId } not { id }
       io?.to(`user:${uid}`).emit("business:deleted", { businessId });
       console.log(`📡 Emitted business:deleted for ${businessId}`);
@@ -265,6 +268,7 @@ router.post(
       // 🔔 5️⃣ Emit socket update
       try {
         const io = req.app.get("io");
+        console.log(`[Socket] Emitting 'business:updated' to room 'user:${uid}' for business ${businessId} (logo upload)`);
         io?.to(`user:${uid}`).emit("business:updated", updatedBusiness);
         console.log(`📡 Emitted business:updated (logo upload) for ${businessId}`);
       } catch (_) {

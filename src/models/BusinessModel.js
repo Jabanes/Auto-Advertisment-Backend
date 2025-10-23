@@ -4,107 +4,136 @@
 
 const admin = require("firebase-admin");
 
+const now = admin.firestore.FieldValue.serverTimestamp();
+
 const BusinessFields = {
   businessId: null,
   name: null,
+  slogan: null,
   description: null,
   logoUrl: null,
+
+  // 🏠 Address & Contact
   address: { street: null, city: null, postalCode: null, country: null },
   contactPhone: null,
   businessEmail: null,
   websiteUrl: null,
+
+  // 👤 Owner info (synced from user but editable)
   owner: { name: null, email: null, phone: null },
+
+  // 🎨 Branding
   brandColors: [],
   preferredStyle: "realistic",
+  visualStyle: null,
 
-  // 🆕 New AI context fields
-  businessType: null,      // "product_seller" | "service_provider" | "content_creator"
-  category: null,          // "fashion" | "food" | "technology" | "beauty" | ...
-  targetAudience: null,    // e.g. "נשים צעירות שאוהבות אופנה ישראלית"
-  toneOfVoice: null,       // "אישי וקליל" | "רשמי ומקצועי" | ...
-  visualStyle: null,       // "minimalistic, bright, clean" ...
-  businessPersona: {       // personalization tone
-    type: null,            // "owner" | "brand"
-    name: null,
-    gender: null,          // "male" | "female" | "neutral"
-  },
-  sellingPlatforms: [],    // ["facebook_marketplace", "instagram", ...]
-  location: null,          // "תל אביב, ישראל"
-  languages: ["hebrew"],   // default
-  businessGoal: null,      // "sale" | "brand_awareness" | ...
-  slogan: null,
+  // 🧠 AI context fields
+  businessType: null,
+  category: null,
+  businessGoal: null,
+  toneOfVoice: null,
+  businessPersona: { type: null, name: null, gender: null },
+  targetAudience: null,
+  sellingPlatforms: [],
+  location: null,
+  languages: ["hebrew"],
+
+  // 🌐 Socials
   instagram: null,
   facebook: null,
   tiktok: null,
 
-  createdAt: admin.firestore.FieldValue.serverTimestamp(),
-  updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  createdAt: now,
+  updatedAt: now,
 };
 
 /**
- * 🧩 Create a new business object with defaults
+ * 🧩 Create a new business document with default values
  */
-function createBusiness({
-  businessId,
-  name,
-  description = null,
-  logoUrl = null,
-  address = null,
-  contactPhone = null,
-  businessEmail = null,
-  websiteUrl = null,
-  owner = null,
-  brandColors = [],
-  preferredStyle = "realistic",
+function createBusiness(data) {
+  const {
+    businessId,
+    name,
+    slogan = null,
+    description = null,
+    logoUrl = null,
+    address = {},
+    contactPhone = null,
+    businessEmail = null,
+    websiteUrl = null,
+    owner = {},
+    brandColors = [],
+    preferredStyle = "realistic",
+    visualStyle = null,
 
-  // 🧠 AI context fields
-  businessType = null,
-  category = null,
-  targetAudience = null,
-  toneOfVoice = null,
-  visualStyle = null,
-  businessPersona = { type: null, name: null, gender: null },
-  sellingPlatforms = [],
-  location = null,
-  languages = ["hebrew"],
-  businessGoal = null,
-  slogan = null,
-  instagram = null,
-  facebook = null,
-  tiktok = null,
-}) {
-  const now = admin.firestore.FieldValue.serverTimestamp();
+    // AI context
+    businessType = null,
+    category = null,
+    businessGoal = null,
+    toneOfVoice = null,
+    businessPersona = { type: null, name: null, gender: null },
+    targetAudience = null,
+    sellingPlatforms = [],
+    location = null,
+    languages = ["hebrew"],
+
+    // Social
+    instagram = null,
+    facebook = null,
+    tiktok = null,
+  } = data;
 
   return {
     ...BusinessFields,
     businessId,
     name,
+    slogan,
     description,
     logoUrl,
-    address,
+    address: {
+      street: address?.street || null,
+      city: address?.city || null,
+      postalCode: address?.postalCode || null,
+      country: address?.country || null,
+    },
     contactPhone,
     businessEmail,
     websiteUrl,
-    owner,
-    brandColors,
+    owner: {
+      name: owner?.name || null,
+      email: owner?.email || null,
+      phone: owner?.phone || null,
+    },
+    brandColors: Array.isArray(brandColors) ? brandColors : [],
     preferredStyle,
+    visualStyle,
     businessType,
     category,
-    targetAudience,
+    businessGoal,
     toneOfVoice,
-    visualStyle,
     businessPersona,
+    targetAudience,
     sellingPlatforms,
     location,
     languages,
-    businessGoal,
-    slogan,
     instagram,
     facebook,
     tiktok,
-    createdAt: now,
-    updatedAt: now,
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
   };
 }
 
-module.exports = { BusinessFields, createBusiness };
+/**
+ * 🔄 Update business document with only provided fields
+ */
+function updateBusiness(existingDoc, updates) {
+  const merged = {
+    ...existingDoc,
+    ...updates,
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  };
+  return merged;
+}
+
+module.exports = { BusinessFields, createBusiness, updateBusiness };

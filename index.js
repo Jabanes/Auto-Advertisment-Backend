@@ -45,10 +45,11 @@ io.use(async (socket, next) => {
     }
 
     const decoded = await admin.auth().verifyIdToken(token);
+    console.log(`[Socket Auth] ✅ Authenticated socket ${socket.id} for user ${decoded.uid}`);
     socket.user = { uid: decoded.uid, email: decoded.email }; // Attach user to the socket
     next();
   } catch (e) {
-    console.error("❌ Socket authentication failed:", e.message);
+    console.error(`❌ Socket authentication failed for socket ${socket.id}:`, e.message);
     next(new Error("Unauthorized socket connection"));
   }
 });
@@ -65,7 +66,7 @@ io.on("connection", (socket) => {
   }
 
   socket.on("disconnect", () => {
-    log(`🔌 Socket disconnected: ${socket.id}`);
+    log(`🔌 Socket disconnected: ${socket.id}${uid ? ` from room user:${uid}` : ''}`);
   });
 });
 

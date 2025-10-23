@@ -135,7 +135,7 @@ router.post(
         .collection("products")
         .doc(productId);
 
-      await productRef.set({ 
+      await productRef.set({
         imageUrl: url,
         updatedAt: admin.firestore.FieldValue.serverTimestamp()
       }, { merge: true });
@@ -146,6 +146,7 @@ router.post(
       // 🔔 Emit socket event to user's room
       try {
         const io = req.app.get("io");
+        console.log(`[Socket] Emitting 'product:updated' to room 'user:${uid}' for product ${productId} (image upload)`);
         io?.to(`user:${uid}`).emit("product:updated", {
           id: productId,
           businessId,
@@ -168,6 +169,8 @@ router.post(
 // ------------------------------------------------------------------
 router.post("/upload", verifyAccessToken, async (req, res) => {
   try {
+    console.log("[Product:Update] Request headers:", req.headers);
+    console.log("[Product:Update] Body:", req.body);
     const uid = req.user.uid;
     let { businessId, businessInfo, products } = req.body;
 
@@ -292,6 +295,7 @@ router.patch("/update/:businessId/:productId", verifyAccessToken, async (req, re
     // 🔔 Emit to user's room only
     try {
       const io = req.app.get("io");
+      console.log(`[Socket] Emitting 'product:updated' to room 'user:${uid}' for product ${productId}`);
       io?.to(`user:${uid}`).emit("product:updated", {
         id: productId,
         businessId,
@@ -356,6 +360,7 @@ router.post("/:businessId", verifyAccessToken, async (req, res) => {
     // 🔔 Emit product:created event to user's room
     try {
       const io = req.app.get("io");
+      console.log(`[Socket] Emitting 'product:created' to room 'user:${uid}' for product ${createdProduct.id}`);
       io?.to(`user:${uid}`).emit("product:created", createdProduct);
       console.log(`📡 Emitted product:created for ${productId}`);
     } catch (err) {
@@ -408,6 +413,7 @@ router.delete("/:businessId/:productId", verifyAccessToken, async (req, res) => 
     // 🔔 Emit product:deleted event to user's room
     try {
       const io = req.app.get("io");
+      console.log(`[Socket] Emitting 'product:deleted' to room 'user:${uid}' for product ${productId}`);
       io?.to(`user:${uid}`).emit("product:deleted", {
         id: productId,
         businessId,
