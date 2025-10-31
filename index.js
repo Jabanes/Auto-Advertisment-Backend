@@ -149,9 +149,9 @@ app.use((err, req, res, next) => {
 // -------------------------------------
 // Bootstrap
 // -------------------------------------
-server.listen(PORT, () => {
+server.listen(PORT, "0.0.0.0", () => {
   log("==================================================");
-  log(`🚀 Server running on http://localhost:${PORT}`);
+  log(`🚀 Server running on http://0.0.0.0:${PORT}`);
   log(`🌍 CORS origins: ${Array.isArray(FRONTEND_URLS) ? FRONTEND_URLS.join(", ") : FRONTEND_URLS}`);
   log(`🔐 JWT: access=${ACCESS_TOKEN_EXPIRES_IN} refresh=${REFRESH_TOKEN_EXPIRES_IN}`);
   log(`🔥 Firebase project: ${serviceAccount.project_id || "(from service account)"}`);
