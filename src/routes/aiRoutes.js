@@ -62,30 +62,33 @@ router.post("/generate-ad-image", verifyAccessToken, async (req, res) => {
     fs.writeFileSync(tmpFile, pngBuffer);
 
     // ----------------------------------------------------
-    // Step 2: Send image + prompt to OpenAI for editing
+    // Step 2: Generate image using GPT-Image-1 (no edits API)
     // ----------------------------------------------------
-    const form = new FormData();
-    form.append("model", "gpt-image-1");
-    form.append("prompt", imagePrompt);
-    form.append("size", "1024x1024");
-    form.append("image", fs.createReadStream(tmpFile), {
-      filename: `${productId}.png`,
-      contentType: "image/png",
-    });
-
-    const openaiResp = await fetch("https://api.openai.com/v1/images/edits", {
+    const openaiResp = await fetch("https://api.openai.com/v1/images/generations", {
       method: "POST",
       headers: {
-        ...form.getHeaders(),
         Authorization: `Bearer ${OPENAI_API_KEY}`,
+        "Content-Type": "application/json",
         "OpenAI-Organization": OPENAI_ORG_ID,
       },
-      body: form,
+      body: JSON.stringify({
+        model: "gpt-image-1",
+        prompt: imagePrompt,
+        size: "1024x1024",
+      }),
     });
 
     const data = await openaiResp.json();
-    if (!data?.data?.[0]?.b64_json)
-      return res.status(500).json({ success: false, error: "OpenAI did not return valid image data" });
+
+    // Log raw response for debugging
+    if (!data?.data?.[0]?.b64_json) {
+      console.error("❌ OpenAI invalid response:", data);
+      return res.status(500).json({
+        success: false,
+        error: "OpenAI did not return valid image data",
+        details: data?.error?.message || "Unknown error",
+      });
+    }
 
     // ----------------------------------------------------
     // Step 3: Upload to Firebase Storage
@@ -111,7 +114,7 @@ router.post("/generate-ad-image", verifyAccessToken, async (req, res) => {
     // Step 4: Update Firestore (status → "enriched")
     // ----------------------------------------------------
     console.log(`[AI] Updating product ${productId} in Firestore with generated image and status=${STATUS.ENRICHED}`);
-    
+
     await productRef.set(
       {
         generatedImageUrl: publicUrl,
@@ -156,7 +159,7 @@ router.post("/generate-ad-image", verifyAccessToken, async (req, res) => {
     // If an error occurs, update the product status to FAILED
     if (productRef) {
       console.log(`[AI] Updating product ${productId} status to FAILED due to error`);
-      
+
       await productRef.set(
         {
           status: STATUS.FAILED,
